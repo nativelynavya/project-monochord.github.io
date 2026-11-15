@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#FAF3DC">
+    <title>Monochord Educator Studio: Custom Graph Sonifier</title>
+    <meta
+      name="description"
+      content="Create, explore, sonify, download, and share accessible custom graph lessons."
+    >
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body class="studio-page chapter-page">
+    <a class="home-link" href="index.html">Back to Project Monochord Home</a>
+    <a class="skip-link" href="#main-content">Skip to the graph studio</a>
+
+    <header class="site-header">
+      <p class="wordmark">PROJECT MONOCHORD · EDUCATOR STUDIO</p>
+    </header>
+
+    <main id="main-content" tabindex="-1">
+      <section aria-labelledby="page-title">
+        <h1 id="page-title">Monochord Educator Studio: Custom Graph Sonifier</h1>
+        <p class="intro">
+          Make a graph lesson your students can explore visually and by sound.
+          Higher Y-values map to higher musical pitches.
+        </p>
+      </section>
+
+      <section class="panel" aria-labelledby="edit-graph-title">
+        <h2 id="edit-graph-title">Create a custom graph</h2>
+        <p class="help-text">
+          Enter at least two comma-separated finite numbers (up to 40 values).
+          Each value is plotted in order at X positions 1, 2, 3, and so on.
+        </p>
+        <form id="graph-form" novalidate>
+          <div class="studio-fields">
+            <label for="graph-title">
+              Graph Title
+              <input id="graph-title" name="title" type="text" maxlength="100" required value="Production Possibility Frontier">
+            </label>
+            <label for="x-label">
+              X-Axis Label
+              <input id="x-label" name="xLabel" type="text" maxlength="80" required value="Consumer Goods">
+            </label>
+            <label for="y-label">
+              Y-Axis Label
+              <input id="y-label" name="yLabel" type="text" maxlength="80" required value="Capital Goods">
+            </label>
+            <label class="wide-field" for="data-values">
+              Data Values
+              <textarea id="data-values" name="values" maxlength="1000" required aria-describedby="values-help">100, 90, 75, 50, 0</textarea>
+            </label>
+          </div>
+          <p id="values-help" class="help-text">
+            Values are read left to right and mapped from 220 Hz (lowest value)
+            to 880 Hz (highest value).
+          </p>
+          <div class="controls">
+            <button type="submit">Update Graph</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="graph-section-title">
+        <h2 id="graph-section-title">Explore the curve</h2>
+        <p id="chart-instructions" class="chart-instructions">
+          Focus the graph and use the Left and Right Arrow keys to move between
+          points. Each point's value and pitch are announced and played.
+        </p>
+        <p id="rendered-title" class="current-value">Production Possibility Frontier</p>
+        <div
+          id="interactive-chart"
+          class="studio-chart"
+          role="group"
+          tabindex="0"
+          aria-label="Interactive custom graph"
+          aria-describedby="chart-instructions"
+        >
+          <svg
+            id="graph-svg"
+            viewBox="0 0 720 410"
+            role="img"
+            aria-labelledby="svg-title svg-description"
+          >
+            <title id="svg-title">Production Possibility Frontier</title>
+            <desc id="svg-description">A line chart with five data points.</desc>
+            <g id="graph-grid" aria-hidden="true"></g>
+            <polyline id="graph-curve" class="studio-curve" points=""></polyline>
+            <g id="graph-points" aria-hidden="true"></g>
+            <g id="graph-labels" aria-hidden="true"></g>
+          </svg>
+        </div>
+
+        <p id="point-readout" class="status" role="status" aria-live="polite" aria-atomic="true">
+          Point 1 of 5. Consumer Goods 1. Capital Goods 100. Pitch 880 hertz.
+        </p>
+        <div class="studio-actions" role="group" aria-label="Graph audio and sharing">
+          <button id="play-curve" type="button">Play Curve</button>
+          <button id="stop-curve" type="button" disabled>Stop Curve</button>
+          <button id="download-wav" type="button">Download Audio (.WAV) for Slides</button>
+          <button id="copy-link" type="button">Copy Shareable Graph Link</button>
+        </div>
+        <p id="studio-status" class="status" role="status" aria-live="polite" aria-atomic="true">
+          Ready. The Production Possibility Frontier example is loaded.
+        </p>
+
+        <div class="studio-table-wrap">
+          <table class="data-table">
+            <caption>Graph data points</caption>
+            <thead>
+              <tr>
+                <th scope="col">Point</th>
+                <th id="x-table-heading" scope="col">Consumer Goods</th>
+                <th id="y-table-heading" scope="col">Capital Goods</th>
+                <th scope="col">Pitch (Hz)</th>
+              </tr>
+            </thead>
+            <tbody id="graph-data-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Project Monochord — Data Beyond Sight.</p>
+    </footer>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const MAX_POINTS = 40;
+        const MIN_VALUE = -1000000;
+        const MAX_VALUE = 1000000;
+        const MIN_FREQUENCY = 220;
+        const MAX_FREQUENCY = 880;
+        const SAMPLE_RATE = 44100;
+        const NOTE_DURATION = 0.36;
+        const NOTE_GAP = 0.12;
+        const DEFAULT_CONFIG = {
+          title: "Production Possibility Frontier",
+          xLabel: "Consumer Goods",
+          yLabel: "Capital Goods",
+          values: [100, 90, 75, 50, 0]
+        };
+
+        const form = document.querySelector("#graph-form");
+        const titleInput = document.querySelector("#graph-title");
+        const xLabelInput = document.querySelector("#x-label");
+        const yLabelInput = document.querySelector("#y-label");
+        const valuesInput = document.querySelector("#data-values");
+        const chart = document.querySelector("#interactive-chart");
+        const svg = document.querySelector("#graph-svg");
+        const svgTitle = document.querySelector("#svg-title");
+        const svgDescription = document.querySelector("#svg-description");
+        const grid = document.querySelector("#graph-grid");
+        const curve = document.querySelector("#graph-curve");
+        const pointsGroup = document.querySelector("#graph-points");
+        const labelsGroup = document.querySelector("#graph-labels");
+        const pointReadout = document.querySelector("#point-readout");
+        const status = document.querySelector("#studio-status");
+        const playButton = document.querySelector("#play-curve");
+        const stopButton = document.querySelector("#stop-curve");
+        const downloadButton = document.querySelector("#download-wav");
+        const copyButton = document.querySelector("#copy-link");
+        const dataRows = document.querySelector("#graph-data-rows");
+        const xTableHeading = document.querySelector("#x-table-heading");
+        const yTableHeading = document.querySelector("#y-table-heading");
+        const plot = { left: 90, right: 690, top: 35, bottom: 315 };
+
+        let config = DEFAULT_CONFIG;
+        let selectedIndex = 0;
+        let audioContext;
+        let activeOscillator;
+        let playbackToken = 0;
+
+        function createSvgElement(tag, attributes = {}) {
+          const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+          for (const [name, value] of Object.entries(attributes)) {
+            element.setAttribute(name, String(value));
+          }
+          return element;
+        }
+
+        function formatNumber(value) {
+          return new Intl.NumberFormat(undefined, { maximumSignificantDigits: 5 }).format(value);
+        }
+
+        function frequencyFor(value) {
+          const minimum = Math.min(...config.values);
+          const maximum = Math.max(...config.values);
+          if (minimum === maximum) return (MIN_FREQUENCY + MAX_FREQUENCY) / 2;
+          const position = (value - minimum) / (maximum - minimum);
+          return MIN_FREQUENCY * (MAX_FREQUENCY / MIN_FREQUENCY) ** position;
+        }
+
+        function setStatus(message) {
+          status.textContent = message;
+        }
+
+        function announcePoint() {
+          const value = config.values[selectedIndex];
+          const frequency = frequencyFor(value);
+          const xPosition = selectedIndex + 1;
+          pointReadout.textContent =
+            `Point ${xPosition} of ${config.values.length}. ` +
+            `${config.xLabel} ${xPosition}. ${config.yLabel} ${value}. ` +
+            `Pitch ${Math.round(frequency)} hertz.`;
+        }
+
+        function updateChart() {
+          const values = config.values;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          const padding = max === min ? Math.max(Math.abs(max) * 0.1, 1) : (max - min) * 0.12;
+          const lower = min - padding;
+          const upper = max + padding;
+          const xAt = (index) => plot.left + (index * (plot.right - plot.left)) / (values.length - 1);
+          const yAt = (value) => plot.bottom - ((value - lower) / (upper - lower)) * (plot.bottom - plot.top);
+
+          grid.replaceChildren();
+          pointsGroup.replaceChildren();
+          labelsGroup.replaceChildren();
+
+          for (let step = 0; step <= 4; step += 1) {
+            const value = upper - ((upper - lower) * step) / 4;
+            const y = yAt(value);
+            grid.append(createSvgElement("line", {
+              x1: plot.left, x2: plot.right, y1: y, y2: y, class: "studio-grid-line"
+            }));
+            const tick = createSvgElement("text", {
+              x: plot.left - 10, y: y + 5, "text-anchor": "end", class: "studio-tick-label"
+            });
+            tick.textContent = formatNumber(value);
+            labelsGroup.append(tick);
+          }
+
+          const xTickIndexes = [...new Set([0, Math.floor((values.length - 1) / 2), values.length - 1])];
+          xTickIndexes.forEach((index) => {
+            const x = xAt(index);
+            grid.append(createSvgElement("line", {
+              x1: x, x2: x, y1: plot.top, y2: plot.bottom, class: "studio-grid-line"
+            }));
+            const tick = createSvgElement("text", {
+              x, y: plot.bottom + 24, "text-anchor": "middle", class: "studio-tick-label"
+            });
+            tick.textContent = String(index + 1);
+            labelsGroup.append(tick);
+          });
+
+          curve.setAttribute(
+            "points",
+            values.map((value, index) => `${xAt(index)},${yAt(value)}`).join(" ")
+          );
+          values.forEach((value, index) => {
+            pointsGroup.append(createSvgElement("circle", {
+              cx: xAt(index),
+              cy: yAt(value),
+              r: index === selectedIndex ? 9 : 6,
+              class: `studio-point${index === selectedIndex ? " is-selected" : ""}`
+            }));
+          });
+
+          const xAxisLabel = createSvgElement("text", {
+            x: (plot.left + plot.right) / 2,
+            y: 390,
+            "text-anchor": "middle",
+            class: "studio-axis-label"
+          });
+          xAxisLabel.textContent = config.xLabel;
+          const yAxisLabel = createSvgElement("text", {
+            x: 22,
+            y: (plot.top + plot.bottom) / 2,
+            transform: `rotate(-90 22 ${(plot.top + plot.bottom) / 2})`,
+            "text-anchor": "middle",
+            class: "studio-axis-label"
+          });
+          yAxisLabel.textContent = config.yLabel;
+          labelsGroup.append(xAxisLabel, yAxisLabel);
+
+          const summary = `${config.title}. ${values.length} points. ` +
+            `${config.xLabel} positions 1 through ${values.length}; ` +
+            `${config.yLabel} values range from ${formatNumber(min)} to ${formatNumber(max)}.`;
+          svgTitle.textContent = config.title;
+          svgDescription.textContent = summary;
+          svg.setAttribute("aria-label", summary);
+          chart.setAttribute("aria-label", `Interactive graph: ${summary}`);
+          document.querySelector("#rendered-title").textContent = config.title;
+          xTableHeading.textContent = config.xLabel;
+          yTableHeading.textContent = config.yLabel;
+          updateTable();
+          announcePoint();
+        }
+
+        function updateTable() {
+          dataRows.replaceChildren();
+          config.values.forEach((value, index) => {
+            const row = document.createElement("tr");
+            if (index === selectedIndex) row.setAttribute("aria-current", "true");
+            const pointCell = document.createElement("th");
+            pointCell.scope = "row";
+            pointCell.textContent = `Point ${index + 1}`;
+            const xCell = document.createElement("td");
+            xCell.textContent = String(index + 1);
+            const yCell = document.createElement("td");
+            yCell.textContent = String(value);
+            const pitchCell = document.createElement("td");
+            pitchCell.textContent = String(Math.round(frequencyFor(value)));
+            row.append(pointCell, xCell, yCell, pitchCell);
+            dataRows.append(row);
+          });
+        }
+
+        function selectPoint(index) {
+          selectedIndex = Math.max(0, Math.min(config.values.length - 1, index));
+          updateChart();
+        }
+
+        async function previewSelectedPoint() {
+          if (!window.AudioContext) {
+            setStatus("Audio playback is not supported in this browser. The graph and spoken readout remain available.");
+            return;
+          }
+          const token = playbackToken;
+          try {
+            audioContext ??= new AudioContext();
+            await audioContext.resume();
+            if (token === playbackToken) {
+              await playNote(frequencyFor(config.values[selectedIndex]), token);
+            }
+          } catch (error) {
+            setStatus("The selected point's note could not be played. Check browser audio settings and try again.");
+            console.error("Could not preview the selected graph point.", error);
+          }
+        }
+
+        function parseValues(rawValue) {
+          const parts = rawValue.split(",");
+          if (parts.length < 2 || parts.length > MAX_POINTS) {
+            throw new Error(`Enter between 2 and ${MAX_POINTS} comma-separated values.`);
+          }
+          const numberPattern = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i;
+          const values = parts.map((part) => {
+            const text = part.trim();
+            if (!numberPattern.test(text)) throw new Error("Use only finite numbers separated by commas.");
+            const value = Number(text);
+            if (!Number.isFinite(value) || value < MIN_VALUE || value > MAX_VALUE) {
+              throw new Error(`Each value must be between ${MIN_VALUE} and ${MAX_VALUE}.`);
+            }
+            return value;
+          });
+          return values;
+        }
+
+        function readForm(showValidation = true) {
+          [titleInput, xLabelInput, yLabelInput, valuesInput].forEach((input) => {
+            input.setCustomValidity("");
+          });
+          if (!form.checkValidity()) {
+            if (showValidation) form.reportValidity();
+            throw new Error("Complete each graph field before updating.");
+          }
+
+          const textFields = [
+            [titleInput, "Enter a graph title."],
+            [xLabelInput, "Enter an X-axis label."],
+            [yLabelInput, "Enter a Y-axis label."]
+          ];
+          const emptyTextField = textFields.find(([input]) => !input.value.trim());
+          if (emptyTextField) {
+            emptyTextField[0].setCustomValidity(emptyTextField[1]);
+            if (showValidation) form.reportValidity();
+            throw new Error(emptyTextField[1]);
+          }
+
+          let values;
+          try {
+            values = parseValues(valuesInput.value);
+          } catch (error) {
+            valuesInput.setCustomValidity(error.message);
+            if (showValidation) form.reportValidity();
+            throw error;
+          }
+
+          return {
+            title: titleInput.value.trim(),
+            xLabel: xLabelInput.value.trim(),
+            yLabel: yLabelInput.value.trim(),
+            values
+          };
+        }
+
+        function stopPlayback(message = "Curve playback stopped.") {
+          playbackToken += 1;
+          if (activeOscillator) {
+            try {
+              activeOscillator.stop();
+            } catch (error) {
+              if (error.name !== "InvalidStateError") throw error;
+            }
+            activeOscillator = undefined;
+          }
+          playButton.disabled = false;
+          stopButton.disabled = true;
+          if (message) setStatus(message);
+        }
+
+        function playNote(frequency, token) {
+          return new Promise((resolve) => {
+            if (token !== playbackToken || !audioContext) {
+              resolve();
+              return;
+            }
+            const start = audioContext.currentTime + 0.015;
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            oscillator.type = "sine";
+            oscillator.frequency.setValueAtTime(frequency, start);
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.16, start + 0.025);
+            gain.gain.setValueAtTime(0.16, start + NOTE_DURATION - 0.04);
+            gain.gain.linearRampToValueAtTime(0, start + NOTE_DURATION);
+            oscillator.connect(gain);
+            gain.connect(audioContext.destination);
+            activeOscillator = oscillator;
+            oscillator.addEventListener("ended", () => {
+              if (activeOscillator === oscillator) activeOscillator = undefined;
+              resolve();
+            }, { once: true });
+            oscillator.start(start);
+            oscillator.stop(start + NOTE_DURATION);
+          });
+        }
+
+        async function playCurve() {
+          if (!window.AudioContext) {
+            setStatus("Audio playback is not supported in this browser. The graph and WAV export remain available.");
+            return;
+          }
+          stopPlayback("");
+          const token = playbackToken;
+          try {
+            audioContext ??= new AudioContext();
+            await audioContext.resume();
+            if (token !== playbackToken) return;
+            playButton.disabled = true;
+            stopButton.disabled = false;
+            setStatus("Playing the curve.");
+            for (let index = 0; index < config.values.length; index += 1) {
+              if (token !== playbackToken) return;
+              selectPoint(index);
+              await playNote(frequencyFor(config.values[index]), token);
+              if (token !== playbackToken) return;
+              await new Promise((resolve) => window.setTimeout(resolve, NOTE_GAP * 1000));
+            }
+            if (token === playbackToken) stopPlayback("Curve playback complete.");
+          } catch (error) {
+            if (token === playbackToken) stopPlayback("Audio playback could not start. Check browser audio settings and try again.");
+            console.error("Could not play the custom graph curve.", error);
+          }
+        }
+
+        function writeAscii(view, offset, text) {
+          for (let index = 0; index < text.length; index += 1) {
+            view.setUint8(offset + index, text.charCodeAt(index));
+          }
+        }
+
+        function encodeWav(buffer) {
+          const channelData = buffer.getChannelData(0);
+          const bytesPerSample = 2;
+          const dataSize = channelData.length * bytesPerSample;
+          const wavBuffer = new ArrayBuffer(44 + dataSize);
+          const view = new DataView(wavBuffer);
+          writeAscii(view, 0, "RIFF");
+          view.setUint32(4, 36 + dataSize, true);
+          writeAscii(view, 8, "WAVE");
+          writeAscii(view, 12, "fmt ");
+          view.setUint32(16, 16, true);
+          view.setUint16(20, 1, true);
+          view.setUint16(22, 1, true);
+          view.setUint32(24, SAMPLE_RATE, true);
+          view.setUint32(28, SAMPLE_RATE * bytesPerSample, true);
+          view.setUint16(32, bytesPerSample, true);
+          view.setUint16(34, 16, true);
+          writeAscii(view, 36, "data");
+          view.setUint32(40, dataSize, true);
+          for (let index = 0; index < channelData.length; index += 1) {
+            const sample = Math.max(-1, Math.min(1, channelData[index]));
+            view.setInt16(
+              44 + index * bytesPerSample,
+              sample < 0 ? sample * 0x8000 : sample * 0x7fff,
+              true
+            );
+          }
+          return new Blob([wavBuffer], { type: "audio/wav" });
+        }
+
+        async function downloadWav() {
+          const OfflineContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+          if (!OfflineContext) {
+            setStatus("WAV rendering is not supported in this browser. Try a current version of Chrome, Firefox, Safari, or Edge.");
+            return;
+          }
+
+          downloadButton.disabled = true;
+          setStatus("Rendering the curve as a WAV file.");
+          try {
+            const stepDuration = NOTE_DURATION + NOTE_GAP;
+            const duration = (config.values.length - 1) * stepDuration + NOTE_DURATION;
+            const frameCount = Math.ceil(duration * SAMPLE_RATE);
+            const offlineContext = new OfflineContext(1, frameCount, SAMPLE_RATE);
+            config.values.forEach((value, index) => {
+              const start = index * stepDuration;
+              const oscillator = offlineContext.createOscillator();
+              const gain = offlineContext.createGain();
+              oscillator.type = "sine";
+              oscillator.frequency.setValueAtTime(frequencyFor(value), start);
+              gain.gain.setValueAtTime(0, start);
+              gain.gain.linearRampToValueAtTime(0.16, start + 0.025);
+              gain.gain.setValueAtTime(0.16, start + NOTE_DURATION - 0.04);
+              gain.gain.linearRampToValueAtTime(0, start + NOTE_DURATION);
+              oscillator.connect(gain);
+              gain.connect(offlineContext.destination);
+              oscillator.start(start);
+              oscillator.stop(start + NOTE_DURATION);
+            });
+
+            const renderedAudio = await offlineContext.startRendering();
+            const wav = encodeWav(renderedAudio);
+            const url = URL.createObjectURL(wav);
+            const link = document.createElement("a");
+            const filename = config.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "custom-graph";
+            link.href = url;
+            link.download = `${filename}.wav`;
+            document.body.append(link);
+            link.click();
+            link.remove();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+            setStatus("WAV download created. Add the file to your presentation slides.");
+          } catch (error) {
+            setStatus("The WAV file could not be rendered. Try a shorter graph or another browser.");
+            console.error("Could not render a WAV file for the custom graph.", error);
+          } finally {
+            downloadButton.disabled = false;
+          }
+        }
+
+        async function copyShareableLink() {
+          const url = new URL(window.location.href);
+          url.search = "";
+          url.searchParams.set("title", config.title);
+          url.searchParams.set("xLabel", config.xLabel);
+          url.searchParams.set("yLabel", config.yLabel);
+          url.searchParams.set("values", config.values.join(","));
+          try {
+            if (navigator.clipboard?.writeText) {
+              await navigator.clipboard.writeText(url.href);
+            } else {
+              const temporaryInput = document.createElement("textarea");
+              temporaryInput.value = url.href;
+              temporaryInput.setAttribute("readonly", "");
+              temporaryInput.style.position = "fixed";
+              temporaryInput.style.opacity = "0";
+              document.body.append(temporaryInput);
+              temporaryInput.select();
+              const copied = document.execCommand("copy");
+              temporaryInput.remove();
+              if (!copied) throw new Error("Clipboard access is unavailable.");
+            }
+            setStatus("Shareable graph link copied to the clipboard.");
+          } catch (error) {
+            setStatus("Could not copy the link. Check clipboard permissions and try again.");
+            console.error("Could not copy the custom graph link.", error);
+          }
+        }
+
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          try {
+            stopPlayback("");
+            config = readForm();
+            selectedIndex = 0;
+            updateChart();
+            setStatus("Graph updated. Explore the curve with the arrow keys or Play Curve.");
+          } catch (error) {
+            setStatus(error.message);
+          }
+        });
+
+        chart.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          stopPlayback("");
+          selectPoint(selectedIndex + (event.key === "ArrowRight" ? 1 : -1));
+          void previewSelectedPoint();
+        });
+
+        playButton.addEventListener("click", () => void playCurve());
+        stopButton.addEventListener("click", () => stopPlayback());
+        downloadButton.addEventListener("click", () => void downloadWav());
+        copyButton.addEventListener("click", () => void copyShareableLink());
+
+        updateChart();
+        const params = new URLSearchParams(window.location.search);
+        const sharedFields = [
+          ["title", titleInput],
+          ["xLabel", xLabelInput],
+          ["yLabel", yLabelInput],
+          ["values", valuesInput]
+        ];
+        const hasSharedGraph = sharedFields.some(([key]) => params.has(key));
+        if (hasSharedGraph) {
+          sharedFields.forEach(([key, input]) => {
+            if (params.has(key)) input.value = params.get(key);
+          });
+          try {
+            config = readForm(false);
+            selectedIndex = 0;
+            updateChart();
+            setStatus("Shared graph loaded. Explore it with the arrow keys or Play Curve.");
+          } catch (error) {
+            setStatus(`The shared graph link is invalid: ${error.message} The example graph is shown until you update the fields.`);
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#FAF3DC">
     <title>Chapter 1: Purchasing Power vs. Inflation | Project Monochord</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
     <link rel="stylesheet" href="style.css">
   </head>
   <body class="chapter-page">
@@ -85,7 +91,7 @@
 
         <div class="controls" role="group" aria-label="Basket sound controls">
           <button id="play-timeline" type="button">Play 10-Year Timeline</button>
-          <button id="replay-melody" type="button">Replay Basket Melody</button>
+          <button id="replay-melody" type="button">Replay Basket Chords</button>
           <button id="stop-playback" type="button" disabled>Stop Playback</button>
         </div>
       </section>
@@ -180,6 +186,29 @@
       <p>Project Monochord — learning financial data through sound.</p>
     </footer>
 
+    <section class="ears-challenge" id="audio-challenge" data-challenge="inflation" aria-labelledby="challenge-title">
+      <h2 id="challenge-title">Test Your Ears: Audio Challenge</h2>
+      <p>Listen to an economic soundscape and identify what happened to the ₹1,000 basket.</p>
+      <button id="challenge-start" type="button">Test Your Ears (Start Audio Challenge)</button>
+      <div id="challenge-panel" hidden>
+        <h3 id="challenge-question" class="challenge-prompt" tabindex="-1">What happened to the ₹1,000 basket?</h3>
+        <p id="challenge-audio-status" class="status" role="status" aria-live="polite">Listen to the full 3-second soundscape before choosing.</p>
+        <div id="challenge-answers" class="challenge-answers" role="group" aria-label="Answer choices"></div>
+        <div class="controls">
+          <button id="challenge-replay" type="button">Replay Soundscape</button>
+          <button id="challenge-another" type="button" hidden>Try Another Soundscape</button>
+          <button id="challenge-exit" type="button">Exit Challenge &amp; Show Visuals</button>
+        </div>
+        <p id="challenge-feedback" class="challenge-feedback" role="status" aria-live="assertive" aria-atomic="true" hidden></p>
+        <p id="challenge-score" class="challenge-score" aria-live="polite">Score: 0 correct out of 0 answered.</p>
+      </div>
+    </section>
+
+    <nav class="lesson-navigation" aria-label="Chapter navigation">
+      <a class="navigation-button" href="chapter2.html">Next: Chapter 2 — Supply, Demand &amp; Equilibrium →</a>
+    </nav>
+
+    <script src="audio-challenge.js"></script>
     <script>
       (() => {
         "use strict";
@@ -188,6 +217,18 @@
         const MIN_RATE = 0;
         const MAX_RATE = 30;
         const MAX_YEARS = 10;
+        const YEAR_CHORDS = [
+          [[261.63, 329.63, 392], [196, 246.94, 293.66], [174.61, 220, 261.63]],
+          [[246.94, 293.66, 369.99]],
+          [[220, 261.63, 329.63]],
+          [[196, 233.08, 293.66]],
+          [[174.61, 207.65, 261.63]],
+          [[164.81, 196, 246.94]],
+          [[146.83, 174.61, 220]],
+          [[130.81, 155.56, 196]],
+          [[116.54, 138.59, 164.81]],
+          [[98, 116.54]]
+        ];
         const items = [...document.querySelectorAll(".grocery-card")].map((card) => ({
           card,
           name: card.dataset.item,
@@ -266,9 +307,13 @@
         }
 
         function stopSounds() {
-          for (const oscillator of oscillators) {
+          const now = audioContext?.currentTime ?? 0;
+          for (const voice of oscillators) {
+            voice.envelope.gain.cancelScheduledValues(now);
+            voice.envelope.gain.setValueAtTime(voice.envelope.gain.value, now);
+            voice.envelope.gain.linearRampToValueAtTime(0, now + 0.07);
             try {
-              oscillator.stop();
+              voice.oscillator.stop(now + 0.085);
             } catch (error) {
               if (error.name !== "InvalidStateError") throw error;
             }
@@ -286,25 +331,37 @@
           if (message) announcement.textContent = message;
         }
 
-        function playNote(frequency, duration, volume, waveform, token) {
-          if (token !== playbackToken) return;
+        function playChord(frequencies, duration, token) {
+          if (token !== playbackToken) return Promise.resolve();
           const start = audioContext.currentTime + 0.015;
-          const oscillator = audioContext.createOscillator();
-          const envelope = audioContext.createGain();
-          oscillator.type = waveform;
-          oscillator.frequency.setValueAtTime(frequency, start);
-          envelope.gain.setValueAtTime(0, start);
-          envelope.gain.linearRampToValueAtTime(volume, start + 0.025);
-          envelope.gain.exponentialRampToValueAtTime(Math.max(volume * 0.16, 0.0001), start + duration * 0.35);
-          envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-          oscillator.connect(envelope);
-          envelope.connect(audioContext.destination);
-          oscillator.start(start);
-          oscillator.stop(start + duration + 0.02);
-          oscillators.push(oscillator);
-          oscillator.addEventListener("ended", () => {
-            oscillators = oscillators.filter((active) => active !== oscillator);
-          }, { once: true });
+          let voicesRemaining = frequencies.length * 2;
+          return new Promise((resolve) => {
+            const onVoiceEnded = (voice) => {
+              oscillators = oscillators.filter((active) => active !== voice);
+              voicesRemaining -= 1;
+              if (voicesRemaining === 0) resolve();
+            };
+
+            frequencies.forEach((frequency) => {
+              for (const [waveform, volume] of [["triangle", 0.026], ["sine", 0.018]]) {
+                const oscillator = audioContext.createOscillator();
+                const envelope = audioContext.createGain();
+                const voice = { oscillator, envelope };
+                oscillator.type = waveform;
+                oscillator.frequency.setValueAtTime(frequency, start);
+                envelope.gain.setValueAtTime(0, start);
+                envelope.gain.linearRampToValueAtTime(volume, start + 0.07);
+                envelope.gain.setValueAtTime(volume, start + duration - 0.14);
+                envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+                oscillator.connect(envelope);
+                envelope.connect(audioContext.destination);
+                oscillator.addEventListener("ended", () => onVoiceEnded(voice), { once: true });
+                oscillator.start(start);
+                oscillator.stop(start + duration + 0.015);
+                oscillators.push(voice);
+              }
+            });
+          });
         }
 
         async function prepareAudio() {
@@ -323,23 +380,18 @@
           }
         }
 
-        async function playBasketMelody(year, token) {
+        async function playBasketChords(year, token) {
           if (!await prepareAudio() || token !== playbackToken) return;
           stopSounds();
-          const { affordable } = basketState(year);
-          const availableItems = items.filter((item) => affordable.has(item.name));
-          const rate = inflationRate();
-          const purchasingRatio = Math.pow(1 + rate, -(year - 1));
-          const tempo = 0.18 + (year - 1) * 0.035;
-          const pitchScale = 0.65 + purchasingRatio * 0.35;
-          const notes = [261.63, 293.66, 329.63, 349.23, 392, 440, 493.88, 523.25, 587.33, 659.25];
-          for (const [index, item] of availableItems.entries()) {
+          const chords = YEAR_CHORDS[year - 1];
+          const duration = Math.min(0.48 + (year - 1) * 0.065, 1.05);
+          const gap = 0.09 + (year - 1) * 0.025;
+          for (const [index, frequencies] of chords.entries()) {
             if (token !== playbackToken) return;
-            const duration = Math.min(tempo * 0.85, 0.42);
-            const frequency = notes[index] * pitchScale;
-            playNote(frequency, duration, 0.075, "sine", token);
-            playNote(frequency * 2, duration * 0.72, 0.012, "triangle", token);
-            await new Promise((resolve) => window.setTimeout(resolve, tempo * 1000));
+            await playChord(frequencies, duration, token);
+            if (index < chords.length - 1) {
+              await new Promise((resolve) => window.setTimeout(resolve, gap * 1000));
+            }
           }
         }
 
@@ -356,9 +408,11 @@
             selectedYear = year;
             yearSlider.value = String(year);
             updateBasket(true);
-            await playBasketMelody(year, token);
+            await playBasketChords(year, token);
             if (token !== playbackToken) return;
-            if (year < MAX_YEARS) await new Promise((resolve) => window.setTimeout(resolve, 350));
+            if (year < MAX_YEARS) {
+              await new Promise((resolve) => window.setTimeout(resolve, 200 + year * 65));
+            }
           }
           if (token === playbackToken) stopPlayback("10-year timeline complete.");
         }
@@ -371,6 +425,7 @@
           inflationRange.value = String(rate);
           stopPlayback("");
           updateBasket(true);
+          void playBasketChords(selectedYear, playbackToken);
         }
 
         inflationNumber.addEventListener("input", () => {
@@ -386,16 +441,18 @@
           stopPlayback("");
           selectedYear = Number(yearSlider.value);
           updateBasket(true);
+          void playBasketChords(selectedYear, playbackToken);
         });
         document.querySelectorAll("[data-rate]").forEach((button) => {
           button.addEventListener("click", () => setInflation(button.dataset.rate));
         });
+        window.addEventListener("monochord:stop-audio", () => stopPlayback(""));
         playTimelineButton.addEventListener("click", () => void playTimeline());
         replayButton.addEventListener("click", async () => {
           stopPlayback("");
           const token = playbackToken;
           stopButton.disabled = false;
-          await playBasketMelody(selectedYear, token);
+          await playBasketChords(selectedYear, token);
           if (token === playbackToken) stopButton.disabled = true;
         });
         stopButton.addEventListener("click", () => stopPlayback());

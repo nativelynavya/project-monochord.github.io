@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#FAF3DC">
     <title>Chapter 2: Supply, Demand &amp; Market Equilibrium | Project Monochord</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
     <link rel="stylesheet" href="style.css">
   </head>
   <body class="chapter-page">
@@ -21,7 +27,8 @@
         <p class="intro">
           Explore how changes in supply and demand affect the price and
           quantity traded. Move the controls to hear the market move away from
-          balance: the two tones beat faster as the imbalance grows.
+          balance: a resolved chord grows more tense and dissonant as imbalance
+          increases, especially for essential goods.
         </p>
       </section>
 
@@ -64,7 +71,7 @@
         </fieldset>
 
         <div class="controls" role="group" aria-label="Market sound and scenario controls">
-          <button id="tone-toggle" type="button" aria-pressed="false">Play Market Tone</button>
+          <button id="tone-toggle" type="button" aria-pressed="false">Play Market Chord</button>
           <button id="reset-market" type="button">Reset to Equilibrium</button>
           <button id="harvest-preset" type="button">Harvest Shortage</button>
           <button id="holiday-preset" type="button">Holiday Demand Surge</button>
@@ -104,6 +111,30 @@
       <p>Project Monochord — learning financial data through sound.</p>
     </footer>
 
+    <section class="ears-challenge" id="audio-challenge" data-challenge="market" aria-labelledby="challenge-title">
+      <h2 id="challenge-title">Test Your Ears: Audio Challenge</h2>
+      <p>Listen to the market soundscape and identify the supply-and-demand condition.</p>
+      <button id="challenge-start" type="button">Test Your Ears (Start Audio Challenge)</button>
+      <div id="challenge-panel" hidden>
+        <h3 id="challenge-question" class="challenge-prompt" tabindex="-1">What market condition did you hear?</h3>
+        <p id="challenge-audio-status" class="status" role="status" aria-live="polite">Listen to the full 3-second soundscape before choosing.</p>
+        <div id="challenge-answers" class="challenge-answers" role="group" aria-label="Answer choices"></div>
+        <div class="controls">
+          <button id="challenge-replay" type="button">Replay Soundscape</button>
+          <button id="challenge-another" type="button" hidden>Try Another Soundscape</button>
+          <button id="challenge-exit" type="button">Exit Challenge &amp; Show Visuals</button>
+        </div>
+        <p id="challenge-feedback" class="challenge-feedback" role="status" aria-live="assertive" aria-atomic="true" hidden></p>
+        <p id="challenge-score" class="challenge-score" aria-live="polite">Score: 0 correct out of 0 answered.</p>
+      </div>
+    </section>
+
+    <nav class="lesson-navigation" aria-label="Chapter navigation">
+      <a class="navigation-button" href="chapter1.html">← Previous: Chapter 1</a>
+      <a class="navigation-button" href="chapter3.html">Next: Chapter 3 — Currency Appreciation &amp; Depreciation →</a>
+    </nav>
+
+    <script src="audio-challenge.js"></script>
     <script>
       (() => {
         "use strict";
@@ -113,6 +144,8 @@
         const SHIFT_SCALE = 0.6;
         const ESSENTIAL_SLOPE = 0.72;
         const LUXURY_SLOPE = 0.24;
+        const RESOLVED_INTERVALS = [0, 7, 12, 16, 19, 24, 28, 31];
+        const DISSONANT_INTERVALS = [0, 1, 6, 7, 13, 18, 24, 25];
         const supplyNumber = document.querySelector("#supply-number");
         const supplyRange = document.querySelector("#supply-range");
         const demandNumber = document.querySelector("#demand-number");
@@ -129,10 +162,7 @@
         const labels = document.querySelector("#market-labels");
 
         let audioContext;
-        let supplyOscillator;
-        let demandOscillator;
-        let supplyGain;
-        let demandGain;
+        let chordVoices = [];
         let isPlaying = false;
         let announcementTimer;
 
@@ -149,14 +179,17 @@
           const equilibriumPrice = BASE_PRICE + (steepness * SHIFT_SCALE * (demandShift - supplyShift)) / 2;
           const imbalance = demandShift - supplyShift;
           const state = imbalance > 0 ? "Shortage" : imbalance < 0 ? "Surplus" : "Balanced";
-          const beat = Math.abs(imbalance) * (goodsType() === "essential" ? 0.12 : 0.035);
+          const intensity = Math.min(
+            1,
+            (Math.abs(imbalance) / 50) * (goodsType() === "essential" ? 1.65 : 1)
+          );
           return {
             supplyShift,
             demandShift,
             equilibriumQuantity,
             equilibriumPrice,
             state,
-            beat,
+            intensity,
             slope: steepness
           };
         }
@@ -222,18 +255,29 @@
         }
 
         function announce(data) {
-          const text = `Equilibrium price ${formatMoney(data.equilibriumPrice)}. Quantity traded ${data.equilibriumQuantity.toFixed(1)} units. Market state: ${data.state}. Beat frequency ${data.beat.toFixed(1)} hertz. ${curveName()}.`;
+          const text = `Equilibrium price ${formatMoney(data.equilibriumPrice)}. Quantity traded ${data.equilibriumQuantity.toFixed(1)} units. Market state: ${data.state}. Chord tension ${Math.round(data.intensity * 100)} percent. ${curveName()}.`;
           status.textContent = text;
           readout.textContent = text;
         }
 
+        function intervalForVoice(index, intensity) {
+          const resolved = RESOLVED_INTERVALS[index];
+          const dissonant = DISSONANT_INTERVALS[index];
+          return resolved + (dissonant - resolved) * intensity;
+        }
+
         function updateOscillators(data) {
-          if (!isPlaying || !audioContext || !supplyOscillator || !demandOscillator) return;
-          const base = 220 + (data.equilibriumPrice - BASE_PRICE) * (goodsType() === "essential" ? 3 : 1);
-          const separation = data.beat;
+          if (!isPlaying || !audioContext || chordVoices.length === 0) return;
+          const root = 130.81 * Math.pow(2, (data.equilibriumPrice - BASE_PRICE) / 60);
           const time = audioContext.currentTime;
-          supplyOscillator.frequency.setTargetAtTime(base - separation / 2, time, 0.04);
-          demandOscillator.frequency.setTargetAtTime(base + separation / 2, time, 0.04);
+          chordVoices.forEach((voice, index) => {
+            const interval = intervalForVoice(index, data.intensity);
+            const frequency = root * Math.pow(2, interval / 12);
+            voice.sine.frequency.setTargetAtTime(frequency, time, 0.08);
+            voice.triangle.frequency.setTargetAtTime(frequency, time, 0.08);
+            voice.sineGain.gain.setTargetAtTime(0.009 + data.intensity * 0.004, time, 0.1);
+            voice.triangleGain.gain.setTargetAtTime(0.004 + data.intensity * 0.008, time, 0.1);
+          });
         }
 
         function refresh() {
@@ -245,64 +289,89 @@
         }
 
         async function startTone() {
+          const startingVoices = [];
           try {
+            if (!window.AudioContext) {
+              status.textContent = "Audio is not supported in this browser.";
+              return;
+            }
             audioContext ??= new AudioContext();
             await audioContext.resume();
             if (isPlaying) return;
             const data = market();
-            const base = 220 + (data.equilibriumPrice - BASE_PRICE) * (goodsType() === "essential" ? 3 : 1);
-            const separation = data.beat;
-            supplyOscillator = audioContext.createOscillator();
-            demandOscillator = audioContext.createOscillator();
-            supplyGain = audioContext.createGain();
-            demandGain = audioContext.createGain();
-            supplyOscillator.type = "sine";
-            demandOscillator.type = "triangle";
-            supplyOscillator.frequency.value = base - separation / 2;
-            demandOscillator.frequency.value = base + separation / 2;
-            supplyGain.gain.value = 0;
-            demandGain.gain.value = 0;
-            supplyOscillator.connect(supplyGain);
-            demandOscillator.connect(demandGain);
-            supplyGain.connect(audioContext.destination);
-            demandGain.connect(audioContext.destination);
             const now = audioContext.currentTime;
-            supplyOscillator.start();
-            demandOscillator.start();
-            supplyGain.gain.setTargetAtTime(0.055, now, 0.08);
-            demandGain.gain.setTargetAtTime(0.035, now, 0.08);
+            const start = now + 0.02;
+            const root = 130.81 * Math.pow(2, (data.equilibriumPrice - BASE_PRICE) / 60);
+            RESOLVED_INTERVALS.forEach((_, index) => {
+              const frequency = root * Math.pow(2, intervalForVoice(index, data.intensity) / 12);
+              const sine = audioContext.createOscillator();
+              const triangle = audioContext.createOscillator();
+              const sineGain = audioContext.createGain();
+              const triangleGain = audioContext.createGain();
+              sine.type = "sine";
+              triangle.type = "triangle";
+              sine.frequency.setValueAtTime(frequency, start);
+              triangle.frequency.setValueAtTime(frequency, start);
+              sineGain.gain.setValueAtTime(0, start);
+              triangleGain.gain.setValueAtTime(0, start);
+              sineGain.gain.linearRampToValueAtTime(0.009 + data.intensity * 0.004, start + 0.22);
+              triangleGain.gain.linearRampToValueAtTime(0.004 + data.intensity * 0.008, start + 0.22);
+              sine.connect(sineGain);
+              triangle.connect(triangleGain);
+              sineGain.connect(audioContext.destination);
+              triangleGain.connect(audioContext.destination);
+              sine.start(start);
+              triangle.start(start);
+              startingVoices.push({ sine, triangle, sineGain, triangleGain });
+            });
+            chordVoices = startingVoices;
             isPlaying = true;
             toggleButton.setAttribute("aria-pressed", "true");
-            toggleButton.textContent = "Hold Market Tone";
+            toggleButton.textContent = "Hold Market Chord";
             announce(data);
           } catch (error) {
+            startingVoices.forEach((voice) => {
+              for (const oscillator of [voice.sine, voice.triangle]) {
+                try {
+                  oscillator.stop();
+                } catch (stopError) {
+                  if (stopError.name !== "InvalidStateError") throw stopError;
+                }
+              }
+            });
+            chordVoices = [];
+            isPlaying = false;
+            toggleButton.setAttribute("aria-pressed", "false");
+            toggleButton.textContent = "Play Market Chord";
             status.textContent = "Audio could not be played. Check your browser audio settings and try again.";
-            console.error("Could not start the market tone.", error);
+            console.error("Could not start the market chord.", error);
           }
         }
 
         function holdTone() {
-          if (audioContext && isPlaying) {
-            const heldSupply = supplyOscillator;
-            const heldDemand = demandOscillator;
+          if (audioContext && isPlaying && chordVoices.length) {
+            const heldVoices = chordVoices;
             const now = audioContext.currentTime;
-            supplyGain.gain.setTargetAtTime(0, now, 0.04);
-            demandGain.gain.setTargetAtTime(0, now, 0.04);
-            window.setTimeout(() => {
-              for (const oscillator of [heldSupply, heldDemand]) {
+            const stopAt = now + 0.2;
+            heldVoices.forEach((voice) => {
+              for (const gain of [voice.sineGain, voice.triangleGain]) {
+                gain.gain.cancelScheduledValues(now);
+                gain.gain.setValueAtTime(gain.gain.value, now);
+                gain.gain.linearRampToValueAtTime(0, stopAt);
+              }
+              for (const oscillator of [voice.sine, voice.triangle]) {
                 try {
-                  oscillator.stop();
-                } catch (error) {
-                  if (error.name !== "InvalidStateError") throw error;
+                  oscillator.stop(stopAt + 0.02);
+                } catch (stopError) {
+                  if (stopError.name !== "InvalidStateError") throw stopError;
                 }
               }
-              if (supplyOscillator === heldSupply) supplyOscillator = undefined;
-              if (demandOscillator === heldDemand) demandOscillator = undefined;
-            }, 180);
+            });
+            chordVoices = [];
           }
           isPlaying = false;
           toggleButton.setAttribute("aria-pressed", "false");
-          toggleButton.textContent = "Play Market Tone";
+          toggleButton.textContent = "Play Market Chord";
         }
 
         function setShift(numberInput, rangeInput, rawValue) {
@@ -332,6 +401,7 @@
           radio.addEventListener("change", () => refresh());
         });
 
+        window.addEventListener("monochord:stop-audio", () => holdTone());
         toggleButton.addEventListener("click", () => {
           if (isPlaying) holdTone();
           else void startTone();

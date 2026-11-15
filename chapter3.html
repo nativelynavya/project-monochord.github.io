@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#FAF3DC">
     <title>Chapter 3 | Currency Appreciation &amp; Depreciation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
     <link rel="stylesheet" href="style.css">
   </head>
   <body class="chapter-page">
@@ -22,8 +28,8 @@
           Explore a sample of the USD to INR exchange rate over six months.
           The rate is Indian rupees per one US dollar: when the number rises,
           the US dollar appreciates against the rupee; when it falls, it
-          depreciates. Each month is a note, with higher rates mapped to
-          higher pitches.
+          depreciates. Appreciation climbs through uplifting major chords,
+          while depreciation descends through minor and half-diminished chords.
         </p>
       </section>
 
@@ -120,6 +126,30 @@
       <p>Project Monochord — learning financial data through sound.</p>
     </footer>
 
+    <section class="ears-challenge" id="audio-challenge" data-challenge="currency" aria-labelledby="challenge-title">
+      <h2 id="challenge-title">Test Your Ears: Audio Challenge</h2>
+      <p>Listen to the exchange-rate soundscape and identify what happened to the currency.</p>
+      <button id="challenge-start" type="button">Test Your Ears (Start Audio Challenge)</button>
+      <div id="challenge-panel" hidden>
+        <h3 id="challenge-question" class="challenge-prompt" tabindex="-1">What happened to the currency?</h3>
+        <p id="challenge-audio-status" class="status" role="status" aria-live="polite">Listen to the full 3-second soundscape before choosing.</p>
+        <div id="challenge-answers" class="challenge-answers" role="group" aria-label="Answer choices"></div>
+        <div class="controls">
+          <button id="challenge-replay" type="button">Replay Soundscape</button>
+          <button id="challenge-another" type="button" hidden>Try Another Soundscape</button>
+          <button id="challenge-exit" type="button">Exit Challenge &amp; Show Visuals</button>
+        </div>
+        <p id="challenge-feedback" class="challenge-feedback" role="status" aria-live="assertive" aria-atomic="true" hidden></p>
+        <p id="challenge-score" class="challenge-score" aria-live="polite">Score: 0 correct out of 0 answered.</p>
+      </div>
+    </section>
+
+    <nav class="lesson-navigation" aria-label="Chapter navigation">
+      <a class="navigation-button" href="chapter2.html">← Previous: Chapter 2</a>
+      <a class="navigation-button" href="index.html">Back to Project Monochord Home</a>
+    </nav>
+
+    <script src="audio-challenge.js"></script>
     <script>
       (() => {
         "use strict";
@@ -131,10 +161,25 @@
         };
         const MIN_RATE = 50;
         const MAX_RATE = 120;
-        const MIN_FREQUENCY = 220;
-        const MAX_FREQUENCY = 660;
         const NOTE_DURATION = 0.48;
         const NOTE_GAP_MS = 850;
+        const APPRECIATION_CHORDS = [
+          { name: "C major", notes: [261.63, 329.63, 392] },
+          { name: "D minor", notes: [293.66, 349.23, 440] },
+          { name: "E minor", notes: [329.63, 392, 493.88] },
+          { name: "F major", notes: [349.23, 440, 523.25] },
+          { name: "G major", notes: [392, 493.88, 587.33] },
+          { name: "A major", notes: [440, 554.37, 659.25] }
+        ];
+        const DEPRECIATION_CHORDS = [
+          { name: "A minor", notes: [220, 261.63, 329.63] },
+          { name: "G half-diminished", notes: [196, 233.08, 277.18, 349.23] },
+          { name: "F minor", notes: [174.61, 207.65, 261.63] },
+          { name: "E half-diminished", notes: [164.81, 196, 246.94, 293.66] },
+          { name: "D minor", notes: [146.83, 174.61, 220] },
+          { name: "C half-diminished", notes: [130.81, 155.56, 196, 233.08] }
+        ];
+        const NEUTRAL_CHORD = { name: "C major", notes: [261.63, 329.63, 392] };
 
         const values = [82.9, 83.1, 83.35, 83.55, 83.7, 83.95];
         const playButton = document.querySelector("#play-trend");
@@ -166,19 +211,16 @@
           return "No change";
         }
 
-        function frequencyFor(value) {
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (max === min) return (MIN_FREQUENCY + MAX_FREQUENCY) / 2;
-          return MIN_FREQUENCY + ((value - min) / (max - min)) * (MAX_FREQUENCY - MIN_FREQUENCY);
-        }
-
         function stopSound() {
           window.clearTimeout(previewTimer);
           previewTimer = undefined;
-          for (const oscillator of activeOscillators) {
+          const now = audioContext?.currentTime ?? 0;
+          for (const voice of activeOscillators) {
+            voice.gain.gain.cancelScheduledValues(now);
+            voice.gain.gain.setValueAtTime(voice.gain.gain.value, now);
+            voice.gain.gain.linearRampToValueAtTime(0, now + 0.09);
             try {
-              oscillator.stop();
+              voice.oscillator.stop(now + 0.11);
             } catch (error) {
               if (error.name !== "InvalidStateError") throw error;
             }
@@ -186,7 +228,16 @@
           activeOscillators = [];
         }
 
-        async function playNote(index) {
+        function chordForMonth(index) {
+          const direction = index === 0
+            ? (values[values.length - 1] < values[0] ? "Depreciation" : "Appreciation")
+            : getTrend(index);
+          if (direction === "Depreciation") return DEPRECIATION_CHORDS[index];
+          if (direction === "Appreciation") return APPRECIATION_CHORDS[index];
+          return NEUTRAL_CHORD;
+        }
+
+        async function playChord(index, token = playbackToken) {
           if (!window.AudioContext) {
             status.textContent = "Audio is not supported in this browser. The chart and data remain available.";
             return;
@@ -196,31 +247,49 @@
           try {
             audioContext ??= new AudioContext();
             await audioContext.resume();
+            if (token !== playbackToken) return;
 
             const start = audioContext.currentTime + 0.02;
-            const oscillator = audioContext.createOscillator();
-            const gain = audioContext.createGain();
-            oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(frequencyFor(values[index]), start);
-            gain.gain.setValueAtTime(0, start);
-            gain.gain.linearRampToValueAtTime(0.16, start + 0.035);
-            gain.gain.setValueAtTime(0.16, start + NOTE_DURATION - 0.07);
-            gain.gain.linearRampToValueAtTime(0, start + NOTE_DURATION);
-            oscillator.connect(gain);
-            gain.connect(audioContext.destination);
-            oscillator.start(start);
-            oscillator.stop(start + NOTE_DURATION);
-            activeOscillators = [oscillator];
+            const chord = chordForMonth(index);
+            let voicesRemaining = chord.notes.length * 2;
+            await new Promise((resolve) => {
+              const onVoiceEnded = (voice) => {
+                activeOscillators = activeOscillators.filter((active) => active !== voice);
+                voicesRemaining -= 1;
+                if (voicesRemaining === 0) resolve();
+              };
+
+              chord.notes.forEach((frequency) => {
+                for (const [waveform, volume] of [["triangle", 0.032], ["sine", 0.022]]) {
+                  const oscillator = audioContext.createOscillator();
+                  const gain = audioContext.createGain();
+                  const voice = { oscillator, gain };
+                  oscillator.type = waveform;
+                  oscillator.frequency.setValueAtTime(frequency, start);
+                  gain.gain.setValueAtTime(0, start);
+                  gain.gain.linearRampToValueAtTime(volume, start + 0.07);
+                  gain.gain.setValueAtTime(volume, start + NOTE_DURATION - 0.15);
+                  gain.gain.exponentialRampToValueAtTime(0.0001, start + NOTE_DURATION);
+                  oscillator.connect(gain);
+                  gain.connect(audioContext.destination);
+                  oscillator.addEventListener("ended", () => onVoiceEnded(voice), { once: true });
+                  oscillator.start(start);
+                  oscillator.stop(start + NOTE_DURATION + 0.015);
+                  activeOscillators.push(voice);
+                }
+              });
+            });
           } catch (error) {
             status.textContent = "Audio could not be played. Check your browser audio settings and try again.";
-            console.error("Could not play the exchange-rate note.", error);
+            console.error("Could not play the exchange-rate chord.", error);
           }
         }
 
         function announceMonth(index, prefix = "") {
           const trend = getTrend(index);
           const trendText = index === 0 ? trend : `, ${trend} from the previous month`;
-          status.textContent = `${prefix}${MONTHS[index]}: ${formatRate(values[index])} Indian rupees per US dollar${trendText}.`;
+          const chord = chordForMonth(index);
+          status.textContent = `${prefix}${MONTHS[index]}: ${formatRate(values[index])} Indian rupees per US dollar${trendText}. ${chord.name} chord.`;
         }
 
         function updateTable() {
@@ -324,7 +393,7 @@
           updateChart();
           updateTable();
           announceMonth(selectedMonth);
-          if (shouldPlay) void playNote(selectedMonth);
+          if (shouldPlay) void playChord(selectedMonth);
         }
 
         function stopTrend(message = "Trend playback stopped.") {
@@ -349,7 +418,7 @@
             updateChart();
             updateTable();
             announceMonth(index, "Playing trend. ");
-            await playNote(index);
+            await playChord(index, token);
             if (token !== playbackToken) return;
             await new Promise((resolve) => {
               playbackTimer = window.setTimeout(resolve, NOTE_GAP_MS);
@@ -382,7 +451,7 @@
           status.textContent = `${MONTHS[index]} updated to ${formatRate(values[index])} Indian rupees per US dollar.`;
           window.clearTimeout(previewTimer);
           previewTimer = window.setTimeout(() => {
-            void playNote(index);
+            void playChord(index);
           }, source === "range" ? 180 : 300);
         }
 
@@ -435,6 +504,7 @@
         playButton.addEventListener("click", () => {
           void playTrend();
         });
+        window.addEventListener("monochord:stop-audio", () => stopTrend(""));
         stopButton.addEventListener("click", () => stopTrend());
 
         presetSelect.addEventListener("change", () => {
@@ -444,7 +514,7 @@
           stopTrend("");
           refresh();
           announceMonth(selectedMonth, `${presetSelect.options[presetSelect.selectedIndex].text} preset applied. `);
-          void playNote(selectedMonth);
+          void playChord(selectedMonth);
         });
 
         createMonthControls();
