@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Chapter 2: Supply, Demand &amp; Market Equilibrium | Project Monochord</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body class="chapter-page">
+    <a class="home-link" href="index.html">Back to Project Monochord Home</a>
+    <a class="skip-link" href="#main-content">Skip to lesson</a>
+
+    <header class="site-header">
+      <p class="wordmark">PROJECT MONOCHORD · CHAPTER 2</p>
+    </header>
+
+    <main id="main-content" tabindex="-1">
+      <section aria-labelledby="page-title">
+        <h1 id="page-title">Chapter 2: Supply, Demand &amp; Market Equilibrium</h1>
+        <p class="intro">
+          Explore how changes in supply and demand affect the price and
+          quantity traded. Move the controls to hear the market move away from
+          balance: the two tones beat faster as the imbalance grows.
+        </p>
+      </section>
+
+      <section class="panel" aria-labelledby="controls-title">
+        <h2 id="controls-title">Market controls</h2>
+        <p class="help-text">
+          A positive supply shift means more supply and can create a surplus.
+          A positive demand shift means stronger demand and can create a
+          shortage. Use the sliders' arrow keys or enter a value from -50 to 50.
+        </p>
+
+        <fieldset class="market-control">
+          <legend>Supply shift (supply shock)</legend>
+          <div class="market-paired-control">
+            <label for="supply-number">Supply shift, -50 shortage to +50 surplus</label>
+            <input id="supply-number" type="number" min="-50" max="50" step="1" value="0">
+            <input id="supply-range" type="range" min="-50" max="50" step="1" value="0" aria-label="Supply shift slider, minus 50 to plus 50">
+          </div>
+        </fieldset>
+
+        <fieldset class="market-control">
+          <legend>Demand shift (demand surge)</legend>
+          <div class="market-paired-control">
+            <label for="demand-number">Demand shift, -50 drop to +50 surge</label>
+            <input id="demand-number" type="number" min="-50" max="50" step="1" value="0">
+            <input id="demand-range" type="range" min="-50" max="50" step="1" value="0" aria-label="Demand shift slider, minus 50 to plus 50">
+          </div>
+        </fieldset>
+
+        <fieldset class="mode-options">
+          <legend>Goods type</legend>
+          <label>
+            <input type="radio" name="goods-type" value="essential" checked>
+            Essential Goods (Inelastic — steep curves)
+          </label>
+          <label>
+            <input type="radio" name="goods-type" value="luxury">
+            Luxury Goods (Elastic — flatter curves)
+          </label>
+        </fieldset>
+
+        <div class="controls" role="group" aria-label="Market sound and scenario controls">
+          <button id="tone-toggle" type="button" aria-pressed="false">Play Market Tone</button>
+          <button id="reset-market" type="button">Reset to Equilibrium</button>
+          <button id="harvest-preset" type="button">Harvest Shortage</button>
+          <button id="holiday-preset" type="button">Holiday Demand Surge</button>
+          <button id="balanced-preset" type="button">Balanced Market</button>
+        </div>
+        <p id="market-status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="chart-title">
+        <h2 id="chart-title">Supply and demand curves</h2>
+        <p id="chart-help" class="help-text">
+          The upward-sloping line is supply; the downward-sloping line is
+          demand. Their crossing dot marks the equilibrium price and quantity.
+        </p>
+        <div class="market-chart-frame">
+          <svg
+            id="market-chart"
+            class="market-chart"
+            viewBox="0 0 720 430"
+            role="img"
+            aria-labelledby="chart-title"
+            aria-describedby="chart-help chart-description"
+          >
+            <desc id="chart-description">Supply and demand intersect at the balanced market equilibrium.</desc>
+            <g id="market-grid" aria-hidden="true"></g>
+            <line id="supply-curve" class="supply-curve" x1="0" y1="0" x2="0" y2="0"></line>
+            <line id="demand-curve" class="demand-curve" x1="0" y1="0" x2="0" y2="0"></line>
+            <circle id="equilibrium-dot" class="equilibrium-dot" cx="0" cy="0" r="9"></circle>
+            <g id="market-labels" aria-hidden="true"></g>
+          </svg>
+        </div>
+        <p id="market-readout" class="market-readout"></p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Project Monochord — learning financial data through sound.</p>
+    </footer>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const BASE_PRICE = 50;
+        const BASE_QUANTITY = 50;
+        const SHIFT_SCALE = 0.6;
+        const ESSENTIAL_SLOPE = 0.72;
+        const LUXURY_SLOPE = 0.24;
+        const supplyNumber = document.querySelector("#supply-number");
+        const supplyRange = document.querySelector("#supply-range");
+        const demandNumber = document.querySelector("#demand-number");
+        const demandRange = document.querySelector("#demand-range");
+        const toggleButton = document.querySelector("#tone-toggle");
+        const status = document.querySelector("#market-status");
+        const readout = document.querySelector("#market-readout");
+        const chart = document.querySelector("#market-chart");
+        const chartDescription = document.querySelector("#chart-description");
+        const supplyCurve = document.querySelector("#supply-curve");
+        const demandCurve = document.querySelector("#demand-curve");
+        const equilibriumDot = document.querySelector("#equilibrium-dot");
+        const grid = document.querySelector("#market-grid");
+        const labels = document.querySelector("#market-labels");
+
+        let audioContext;
+        let supplyOscillator;
+        let demandOscillator;
+        let supplyGain;
+        let demandGain;
+        let isPlaying = false;
+        let announcementTimer;
+
+        const goodsType = () => document.querySelector('input[name="goods-type"]:checked').value;
+        const slope = () => goodsType() === "essential" ? ESSENTIAL_SLOPE : LUXURY_SLOPE;
+        const curveName = () => goodsType() === "essential" ? "Essential goods, inelastic" : "Luxury goods, elastic";
+        const formatMoney = (value) => `$${value.toFixed(2)}`;
+
+        function market() {
+          const supplyShift = Number(supplyNumber.value);
+          const demandShift = Number(demandNumber.value);
+          const steepness = slope();
+          const equilibriumQuantity = BASE_QUANTITY + ((supplyShift + demandShift) * SHIFT_SCALE) / 2;
+          const equilibriumPrice = BASE_PRICE + (steepness * SHIFT_SCALE * (demandShift - supplyShift)) / 2;
+          const imbalance = demandShift - supplyShift;
+          const state = imbalance > 0 ? "Shortage" : imbalance < 0 ? "Surplus" : "Balanced";
+          const beat = Math.abs(imbalance) * (goodsType() === "essential" ? 0.12 : 0.035);
+          return {
+            supplyShift,
+            demandShift,
+            equilibriumQuantity,
+            equilibriumPrice,
+            state,
+            beat,
+            slope: steepness
+          };
+        }
+
+        function updateChart(data) {
+          const plot = { left: 80, right: 680, top: 35, bottom: 350 };
+          const xAt = (quantity) => plot.left + (quantity / 100) * (plot.right - plot.left);
+          const yAt = (price) => plot.bottom - (price / 100) * (plot.bottom - plot.top);
+          const supplyStartQ = 50 + data.supplyShift * SHIFT_SCALE;
+          const demandStartQ = 50 + data.demandShift * SHIFT_SCALE;
+          const supplyStartP = BASE_PRICE + data.slope * (0 - supplyStartQ);
+          const supplyEndP = BASE_PRICE + data.slope * (100 - supplyStartQ);
+          const demandStartP = BASE_PRICE - data.slope * (0 - demandStartQ);
+          const demandEndP = BASE_PRICE - data.slope * (100 - demandStartQ);
+
+          supplyCurve.setAttribute("x1", String(xAt(0)));
+          supplyCurve.setAttribute("y1", String(yAt(supplyStartP)));
+          supplyCurve.setAttribute("x2", String(xAt(100)));
+          supplyCurve.setAttribute("y2", String(yAt(supplyEndP)));
+          demandCurve.setAttribute("x1", String(xAt(0)));
+          demandCurve.setAttribute("y1", String(yAt(demandStartP)));
+          demandCurve.setAttribute("x2", String(xAt(100)));
+          demandCurve.setAttribute("y2", String(yAt(demandEndP)));
+          equilibriumDot.setAttribute("cx", String(xAt(data.equilibriumQuantity)));
+          equilibriumDot.setAttribute("cy", String(yAt(data.equilibriumPrice)));
+
+          const labelValues = [
+            { text: "Price ($)", x: 18, y: 30, anchor: "start" },
+            { text: "Quantity traded", x: 380, y: 410, anchor: "middle" },
+            { text: "Supply", x: 610, y: 155, anchor: "middle" },
+            { text: "Demand", x: 610, y: 240, anchor: "middle" },
+            { text: "Equilibrium", x: xAt(data.equilibriumQuantity) + 12, y: yAt(data.equilibriumPrice) - 12, anchor: "start" }
+          ];
+          grid.replaceChildren();
+          labels.replaceChildren();
+          [0, 25, 50, 75, 100].forEach((value) => {
+            grid.append(
+              svgElement("line", { x1: plot.left, x2: plot.right, y1: yAt(value), y2: yAt(value), class: "market-grid-line" }),
+              svgElement("line", { x1: xAt(value), x2: xAt(value), y1: plot.top, y2: plot.bottom, class: "market-grid-line" })
+            );
+            const priceLabel = svgElement("text", { x: plot.left - 10, y: yAt(value) + 5, "text-anchor": "end", class: "market-axis-label" });
+            priceLabel.textContent = String(value);
+            labels.append(priceLabel);
+            const quantityLabel = svgElement("text", { x: xAt(value), y: plot.bottom + 25, "text-anchor": "middle", class: "market-axis-label" });
+            quantityLabel.textContent = String(value);
+            labels.append(quantityLabel);
+          });
+          labelValues.forEach((value) => {
+            const text = svgElement("text", { x: value.x, y: value.y, "text-anchor": value.anchor, class: "market-curve-label" });
+            text.textContent = value.text;
+            labels.append(text);
+          });
+
+          chartDescription.textContent =
+            `${curveName()}. Supply and demand intersect at equilibrium price ${formatMoney(data.equilibriumPrice)} and quantity ${data.equilibriumQuantity.toFixed(1)}. Market state: ${data.state}.`;
+          chart.setAttribute("aria-label", `Supply and demand chart. ${chartDescription.textContent}`);
+        }
+
+        function svgElement(tag, attributes) {
+          const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+          for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, String(value));
+          return element;
+        }
+
+        function announce(data) {
+          const text = `Equilibrium price ${formatMoney(data.equilibriumPrice)}. Quantity traded ${data.equilibriumQuantity.toFixed(1)} units. Market state: ${data.state}. Beat frequency ${data.beat.toFixed(1)} hertz. ${curveName()}.`;
+          status.textContent = text;
+          readout.textContent = text;
+        }
+
+        function updateOscillators(data) {
+          if (!isPlaying || !audioContext || !supplyOscillator || !demandOscillator) return;
+          const base = 220 + (data.equilibriumPrice - BASE_PRICE) * (goodsType() === "essential" ? 3 : 1);
+          const separation = data.beat;
+          const time = audioContext.currentTime;
+          supplyOscillator.frequency.setTargetAtTime(base - separation / 2, time, 0.04);
+          demandOscillator.frequency.setTargetAtTime(base + separation / 2, time, 0.04);
+        }
+
+        function refresh() {
+          const data = market();
+          updateChart(data);
+          updateOscillators(data);
+          window.clearTimeout(announcementTimer);
+          announcementTimer = window.setTimeout(() => announce(data), 80);
+        }
+
+        async function startTone() {
+          try {
+            audioContext ??= new AudioContext();
+            await audioContext.resume();
+            if (isPlaying) return;
+            const data = market();
+            const base = 220 + (data.equilibriumPrice - BASE_PRICE) * (goodsType() === "essential" ? 3 : 1);
+            const separation = data.beat;
+            supplyOscillator = audioContext.createOscillator();
+            demandOscillator = audioContext.createOscillator();
+            supplyGain = audioContext.createGain();
+            demandGain = audioContext.createGain();
+            supplyOscillator.type = "sine";
+            demandOscillator.type = "triangle";
+            supplyOscillator.frequency.value = base - separation / 2;
+            demandOscillator.frequency.value = base + separation / 2;
+            supplyGain.gain.value = 0;
+            demandGain.gain.value = 0;
+            supplyOscillator.connect(supplyGain);
+            demandOscillator.connect(demandGain);
+            supplyGain.connect(audioContext.destination);
+            demandGain.connect(audioContext.destination);
+            const now = audioContext.currentTime;
+            supplyOscillator.start();
+            demandOscillator.start();
+            supplyGain.gain.setTargetAtTime(0.055, now, 0.08);
+            demandGain.gain.setTargetAtTime(0.035, now, 0.08);
+            isPlaying = true;
+            toggleButton.setAttribute("aria-pressed", "true");
+            toggleButton.textContent = "Hold Market Tone";
+            announce(data);
+          } catch (error) {
+            status.textContent = "Audio could not be played. Check your browser audio settings and try again.";
+            console.error("Could not start the market tone.", error);
+          }
+        }
+
+        function holdTone() {
+          if (audioContext && isPlaying) {
+            const heldSupply = supplyOscillator;
+            const heldDemand = demandOscillator;
+            const now = audioContext.currentTime;
+            supplyGain.gain.setTargetAtTime(0, now, 0.04);
+            demandGain.gain.setTargetAtTime(0, now, 0.04);
+            window.setTimeout(() => {
+              for (const oscillator of [heldSupply, heldDemand]) {
+                try {
+                  oscillator.stop();
+                } catch (error) {
+                  if (error.name !== "InvalidStateError") throw error;
+                }
+              }
+              if (supplyOscillator === heldSupply) supplyOscillator = undefined;
+              if (demandOscillator === heldDemand) demandOscillator = undefined;
+            }, 180);
+          }
+          isPlaying = false;
+          toggleButton.setAttribute("aria-pressed", "false");
+          toggleButton.textContent = "Play Market Tone";
+        }
+
+        function setShift(numberInput, rangeInput, rawValue) {
+          if (rawValue === "") return;
+          const value = Number(rawValue);
+          if (!Number.isFinite(value) || value < -50 || value > 50) return;
+          const integerValue = Math.round(value);
+          numberInput.value = String(integerValue);
+          rangeInput.value = String(integerValue);
+          refresh();
+        }
+
+        function bindShift(numberInput, rangeInput) {
+          numberInput.addEventListener("input", () => setShift(numberInput, rangeInput, numberInput.value));
+          rangeInput.addEventListener("input", () => setShift(numberInput, rangeInput, rangeInput.value));
+          numberInput.addEventListener("change", () => {
+            if (!numberInput.validity.valid || numberInput.value === "") {
+              numberInput.value = rangeInput.value;
+            }
+          });
+        }
+
+        bindShift(supplyNumber, supplyRange);
+        bindShift(demandNumber, demandRange);
+
+        document.querySelectorAll('input[name="goods-type"]').forEach((radio) => {
+          radio.addEventListener("change", () => refresh());
+        });
+
+        toggleButton.addEventListener("click", () => {
+          if (isPlaying) holdTone();
+          else void startTone();
+        });
+
+        function setScenario(supply, demand) {
+          supplyNumber.value = String(supply);
+          supplyRange.value = String(supply);
+          demandNumber.value = String(demand);
+          demandRange.value = String(demand);
+          refresh();
+        }
+
+        document.querySelector("#harvest-preset").addEventListener("click", () => setScenario(-28, 0));
+        document.querySelector("#holiday-preset").addEventListener("click", () => setScenario(0, 30));
+        document.querySelector("#balanced-preset").addEventListener("click", () => setScenario(0, 0));
+        document.querySelector("#reset-market").addEventListener("click", () => {
+          holdTone();
+          document.querySelector('input[name="goods-type"][value="essential"]').checked = true;
+          setScenario(0, 0);
+        });
+
+        grid.setAttribute("aria-hidden", "true");
+        refresh();
+      })();
+    </script>
+  </body>
+</html>

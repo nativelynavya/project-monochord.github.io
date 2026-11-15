@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
+    <title>Chapter 3 | Currency Appreciation &amp; Depreciation</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <a class="home-link" href="index.html">Back to Project Monochord Home</a>
+    <a class="skip-link" href="#main-content">Skip to the tool</a>
+
+    <header class="site-header">
+      <p class="wordmark">PROJECT MONOCHORD · CHAPTER 3</p>
+    </header>
+
+    <main id="main-content" tabindex="-1">
+      <section aria-labelledby="page-title">
+        <h1 id="page-title">Currency Appreciation &amp; Depreciation</h1>
+        <p class="intro">
+          Explore a sample of the USD to INR exchange rate over six months.
+          The rate is Indian rupees per one US dollar: when the number rises,
+          the US dollar appreciates against the rupee; when it falls, it
+          depreciates. Each month is a note, with higher rates mapped to
+          higher pitches.
+        </p>
+      </section>
+
+      <section class="panel" aria-labelledby="explore-title">
+        <h2 id="explore-title">Explore the six-month trend</h2>
+        <p>
+          The sample values are illustrative, not live financial data. Use the
+          chart or the exact-value table to explore each month.
+        </p>
+
+        <div class="controls" role="group" aria-label="Trend playback">
+          <button id="play-trend" type="button">Play trend</button>
+          <button id="stop-trend" type="button" disabled>Stop playback</button>
+        </div>
+        <p id="playback-status" class="status" role="status" aria-live="polite">
+          Ready. January is selected.
+        </p>
+
+        <div
+          id="trend-chart"
+          class="chart-frame"
+          role="group"
+          tabindex="0"
+          aria-label="Six-month USD to INR exchange-rate line chart"
+          aria-describedby="chart-instructions"
+        >
+          <p id="chart-instructions" class="chart-instructions">
+            Focus this chart and use the Left and Right Arrow keys to select a
+            month and hear its value. The chart and table update when you edit
+            the variables below.
+          </p>
+          <svg
+            id="chart-svg"
+            class="chart"
+            viewBox="0 0 720 300"
+            role="img"
+            aria-label="Line chart of USD to INR exchange rates"
+          >
+            <title>USD to INR exchange rate over six months</title>
+            <desc id="chart-description">
+              The line chart displays the exchange rate for each month.
+            </desc>
+            <g id="chart-grid" aria-hidden="true"></g>
+            <polyline id="chart-line" class="chart-line" points=""></polyline>
+            <g id="chart-points" aria-hidden="true"></g>
+          </svg>
+        </div>
+
+        <table class="data-table">
+          <caption>Sample monthly USD to INR exchange rates</caption>
+          <thead>
+            <tr>
+              <th scope="col">Month</th>
+              <th scope="col">INR per 1 USD</th>
+              <th scope="col">USD trend vs. INR</th>
+            </tr>
+          </thead>
+          <tbody id="data-rows"></tbody>
+        </table>
+      </section>
+
+      <section class="panel edit-section" aria-labelledby="edit-title">
+        <h2 id="edit-title">Edit variables</h2>
+        <p>
+          Choose a preset or edit the exchange rate for any month. Values are
+          INR per one USD. Each change updates the chart and previews that
+          month's note.
+        </p>
+
+        <div class="preset-row">
+          <div>
+            <label for="preset-select">Trend preset</label>
+            <select id="preset-select">
+              <option value="custom">Custom values</option>
+              <option value="appreciation">Appreciation</option>
+              <option value="depreciation">Depreciation</option>
+            </select>
+          </div>
+        </div>
+
+        <fieldset>
+          <legend>Monthly exchange rates</legend>
+          <p class="help-text">
+            January is the starting exchange rate. Changing it shifts the
+            other months by the same amount, preserving their trend.
+            The number field and slider for each month stay in sync.
+          </p>
+          <div id="month-controls"></div>
+        </fieldset>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Project Monochord — learning financial data through sound.</p>
+    </footer>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const MONTHS = ["January", "February", "March", "April", "May", "June"];
+        const PRESETS = {
+          appreciation: [82.9, 83.1, 83.35, 83.55, 83.7, 83.95],
+          depreciation: [83.95, 83.7, 83.5, 83.2, 82.95, 82.7]
+        };
+        const MIN_RATE = 50;
+        const MAX_RATE = 120;
+        const MIN_FREQUENCY = 220;
+        const MAX_FREQUENCY = 660;
+        const NOTE_DURATION = 0.48;
+        const NOTE_GAP_MS = 850;
+
+        const values = [82.9, 83.1, 83.35, 83.55, 83.7, 83.95];
+        const playButton = document.querySelector("#play-trend");
+        const stopButton = document.querySelector("#stop-trend");
+        const status = document.querySelector("#playback-status");
+        const chart = document.querySelector("#trend-chart");
+        const chartSvg = document.querySelector("#chart-svg");
+        const chartDescription = document.querySelector("#chart-description");
+        const chartGrid = document.querySelector("#chart-grid");
+        const chartLine = document.querySelector("#chart-line");
+        const chartPoints = document.querySelector("#chart-points");
+        const dataRows = document.querySelector("#data-rows");
+        const monthControls = document.querySelector("#month-controls");
+        const presetSelect = document.querySelector("#preset-select");
+
+        let selectedMonth = 0;
+        let audioContext;
+        let activeOscillators = [];
+        let previewTimer;
+        let playbackTimer;
+        let playbackToken = 0;
+
+        const formatRate = (value) => Number(value).toFixed(2);
+
+        function getTrend(index) {
+          if (index === 0) return "Starting value";
+          if (values[index] > values[index - 1]) return "Appreciation";
+          if (values[index] < values[index - 1]) return "Depreciation";
+          return "No change";
+        }
+
+        function frequencyFor(value) {
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (max === min) return (MIN_FREQUENCY + MAX_FREQUENCY) / 2;
+          return MIN_FREQUENCY + ((value - min) / (max - min)) * (MAX_FREQUENCY - MIN_FREQUENCY);
+        }
+
+        function stopSound() {
+          window.clearTimeout(previewTimer);
+          previewTimer = undefined;
+          for (const oscillator of activeOscillators) {
+            try {
+              oscillator.stop();
+            } catch (error) {
+              if (error.name !== "InvalidStateError") throw error;
+            }
+          }
+          activeOscillators = [];
+        }
+
+        async function playNote(index) {
+          if (!window.AudioContext) {
+            status.textContent = "Audio is not supported in this browser. The chart and data remain available.";
+            return;
+          }
+
+          stopSound();
+          try {
+            audioContext ??= new AudioContext();
+            await audioContext.resume();
+
+            const start = audioContext.currentTime + 0.02;
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            oscillator.type = "sine";
+            oscillator.frequency.setValueAtTime(frequencyFor(values[index]), start);
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.16, start + 0.035);
+            gain.gain.setValueAtTime(0.16, start + NOTE_DURATION - 0.07);
+            gain.gain.linearRampToValueAtTime(0, start + NOTE_DURATION);
+            oscillator.connect(gain);
+            gain.connect(audioContext.destination);
+            oscillator.start(start);
+            oscillator.stop(start + NOTE_DURATION);
+            activeOscillators = [oscillator];
+          } catch (error) {
+            status.textContent = "Audio could not be played. Check your browser audio settings and try again.";
+            console.error("Could not play the exchange-rate note.", error);
+          }
+        }
+
+        function announceMonth(index, prefix = "") {
+          const trend = getTrend(index);
+          const trendText = index === 0 ? trend : `, ${trend} from the previous month`;
+          status.textContent = `${prefix}${MONTHS[index]}: ${formatRate(values[index])} Indian rupees per US dollar${trendText}.`;
+        }
+
+        function updateTable() {
+          dataRows.replaceChildren();
+          values.forEach((value, index) => {
+            const row = document.createElement("tr");
+            if (index === selectedMonth) row.setAttribute("aria-current", "true");
+            const monthCell = document.createElement("th");
+            monthCell.scope = "row";
+            monthCell.textContent = MONTHS[index];
+            const rateCell = document.createElement("td");
+            rateCell.textContent = formatRate(value);
+            const trendCell = document.createElement("td");
+            const trendLabel = document.createElement("span");
+            trendLabel.className = "trend-label";
+            trendLabel.textContent = getTrend(index);
+            trendCell.append(trendLabel);
+            row.append(monthCell, rateCell, trendCell);
+            dataRows.append(row);
+          });
+        }
+
+        function updateChart() {
+          const plot = { left: 78, right: 690, top: 28, bottom: 225 };
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          const range = max - min || 1;
+          const paddedMin = min - range * 0.12;
+          const paddedMax = max + range * 0.12;
+          const yAt = (value) => plot.bottom - ((value - paddedMin) / (paddedMax - paddedMin)) * (plot.bottom - plot.top);
+          const xAt = (index) => plot.left + (index * (plot.right - plot.left)) / (MONTHS.length - 1);
+          const points = values.map((value, index) => `${xAt(index)},${yAt(value)}`);
+
+          chartLine.setAttribute("points", points.join(" "));
+          chartGrid.replaceChildren();
+          chartPoints.replaceChildren();
+
+          for (let step = 0; step < 4; step += 1) {
+            const value = paddedMin + ((paddedMax - paddedMin) * step) / 3;
+            const y = yAt(value);
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", String(plot.left));
+            line.setAttribute("x2", String(plot.right));
+            line.setAttribute("y1", String(y));
+            line.setAttribute("y2", String(y));
+            line.setAttribute("class", "chart-grid");
+            chartGrid.append(line);
+
+            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", "4");
+            label.setAttribute("y", String(y + 5));
+            label.setAttribute("class", "chart-axis-label");
+            label.textContent = formatRate(value);
+            chartGrid.append(label);
+          }
+
+          values.forEach((value, index) => {
+            const x = xAt(index);
+            const y = yAt(value);
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", String(x));
+            circle.setAttribute("cy", String(y));
+            circle.setAttribute("r", index === selectedMonth ? "8" : "6");
+            circle.setAttribute("class", `chart-point${index === selectedMonth ? " is-selected" : ""}`);
+            chartPoints.append(circle);
+
+            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", String(x));
+            label.setAttribute("y", "254");
+            label.setAttribute("text-anchor", "middle");
+            label.setAttribute("class", "chart-month-label");
+            label.textContent = MONTHS[index].slice(0, 3);
+            chartPoints.append(label);
+          });
+
+          chartDescription.textContent = MONTHS.map((month, index) =>
+            `${month} ${formatRate(values[index])} rupees per US dollar`
+          ).join("; ") + ".";
+          chartSvg.setAttribute("aria-label", `USD to INR exchange-rate chart. ${chartDescription.textContent}`);
+        }
+
+        function updateControls() {
+          values.forEach((value, index) => {
+            const numberInput = document.querySelector(`#month-${index}-number`);
+            const rangeInput = document.querySelector(`#month-${index}-range`);
+            if (document.activeElement !== numberInput) numberInput.value = formatRate(value);
+            if (document.activeElement !== rangeInput) rangeInput.value = String(value);
+          });
+        }
+
+        function refresh(announce = false) {
+          updateChart();
+          updateTable();
+          updateControls();
+          if (announce) announceMonth(selectedMonth, "Updated. ");
+        }
+
+        function selectMonth(index, shouldPlay = true) {
+          stopTrend("");
+          selectedMonth = Math.max(0, Math.min(MONTHS.length - 1, index));
+          updateChart();
+          updateTable();
+          announceMonth(selectedMonth);
+          if (shouldPlay) void playNote(selectedMonth);
+        }
+
+        function stopTrend(message = "Trend playback stopped.") {
+          playbackToken += 1;
+          window.clearTimeout(playbackTimer);
+          playbackTimer = undefined;
+          stopSound();
+          playButton.disabled = false;
+          stopButton.disabled = true;
+          if (message) status.textContent = message;
+        }
+
+        async function playTrend() {
+          stopTrend("");
+          const token = playbackToken;
+          playButton.disabled = true;
+          stopButton.disabled = false;
+
+          for (let index = 0; index < MONTHS.length; index += 1) {
+            if (token !== playbackToken) return;
+            selectedMonth = index;
+            updateChart();
+            updateTable();
+            announceMonth(index, "Playing trend. ");
+            await playNote(index);
+            if (token !== playbackToken) return;
+            await new Promise((resolve) => {
+              playbackTimer = window.setTimeout(resolve, NOTE_GAP_MS);
+            });
+          }
+
+          if (token === playbackToken) {
+            stopTrend("Trend playback complete.");
+          }
+        }
+
+        function setValue(index, rawValue, source) {
+          const parsedValue = Number(rawValue);
+          if (!Number.isFinite(parsedValue) || parsedValue < MIN_RATE || parsedValue > MAX_RATE) return;
+          const value = Math.round(parsedValue * 100) / 100;
+
+          if (index === 0) {
+            const shift = value - values[0];
+            values.forEach((oldValue, monthIndex) => {
+              values[monthIndex] = Math.min(MAX_RATE, Math.max(MIN_RATE, oldValue + shift));
+            });
+            values[0] = value;
+          } else {
+            values[index] = value;
+          }
+
+          presetSelect.value = "custom";
+          stopTrend("");
+          refresh();
+          status.textContent = `${MONTHS[index]} updated to ${formatRate(values[index])} Indian rupees per US dollar.`;
+          window.clearTimeout(previewTimer);
+          previewTimer = window.setTimeout(() => {
+            void playNote(index);
+          }, source === "range" ? 180 : 300);
+        }
+
+        function createMonthControls() {
+          MONTHS.forEach((month, index) => {
+            const row = document.createElement("div");
+            row.className = "month-control";
+
+            const label = document.createElement("label");
+            label.htmlFor = `month-${index}-number`;
+            label.textContent = `${month}${index === 0 ? " — starting value" : ""}`;
+
+            const number = document.createElement("input");
+            number.id = `month-${index}-number`;
+            number.type = "number";
+            number.min = String(MIN_RATE);
+            number.max = String(MAX_RATE);
+            number.step = "0.01";
+            number.value = formatRate(values[index]);
+            number.setAttribute("aria-label", `${month} exchange rate, Indian rupees per US dollar`);
+            number.addEventListener("input", () => {
+              if (number.value !== "") setValue(index, number.value, "number");
+            });
+            number.addEventListener("change", () => {
+              number.value = formatRate(values[index]);
+            });
+
+            const range = document.createElement("input");
+            range.id = `month-${index}-range`;
+            range.type = "range";
+            range.min = String(MIN_RATE);
+            range.max = String(MAX_RATE);
+            range.step = "0.01";
+            range.value = String(values[index]);
+            range.setAttribute("aria-label", `${month} exchange rate slider, Indian rupees per US dollar`);
+            range.addEventListener("input", () => setValue(index, range.value, "range"));
+
+            row.append(label, number, range);
+            monthControls.append(row);
+          });
+        }
+
+        chart.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          const delta = event.key === "ArrowRight" ? 1 : -1;
+          selectMonth(selectedMonth + delta);
+        });
+
+        playButton.addEventListener("click", () => {
+          void playTrend();
+        });
+        stopButton.addEventListener("click", () => stopTrend());
+
+        presetSelect.addEventListener("change", () => {
+          if (presetSelect.value === "custom") return;
+          values.splice(0, values.length, ...PRESETS[presetSelect.value]);
+          selectedMonth = 0;
+          stopTrend("");
+          refresh();
+          announceMonth(selectedMonth, `${presetSelect.options[presetSelect.selectedIndex].text} preset applied. `);
+          void playNote(selectedMonth);
+        });
+
+        createMonthControls();
+        refresh();
+      })();
+    </script>
+  </body>
+</html>
