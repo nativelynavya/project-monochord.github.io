@@ -1,12 +1,12 @@
       :root {
         color-scheme: light;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #172033;
-        background: #fff;
-        --ink: #172033;
-        --muted: #38445a;
-        --line: #aab4c3;
-        --surface: #f3f6fa;
+        color: #111111;
+        background: #FAF3DC;
+        --ink: #111111;
+        --muted: #343434;
+        --line: #756d58;
+        --surface: #F4EBCB;
         --focus: #005fcc;
         --chart: #0756a5;
       }
@@ -15,14 +15,20 @@
         box-sizing: border-box;
       }
 
+      html {
+        scroll-behavior: smooth;
+      }
+
       body {
         min-width: 18rem;
         margin: 0;
+        background: #FAF3DC;
+        color: var(--ink);
         line-height: 1.6;
       }
 
       a {
-        color: #0645ad;
+        color: var(--ink);
         text-underline-offset: 0.2em;
       }
 
@@ -165,7 +171,7 @@
         overflow-x: auto;
         border: 1px solid var(--line);
         border-radius: 0.25rem;
-        background: #fff;
+        background: #fffdf5;
       }
 
       .chart {
@@ -354,7 +360,7 @@
       .landing-page {
         min-height: 100vh;
         color: #111111;
-        background: #faf3dc;
+        background: #FAF3DC;
         font-family: "Atkinson Hyperlegible", "Arial", sans-serif;
       }
 
@@ -378,8 +384,18 @@
       }
 
       .landing-hero {
-        padding-block: clamp(3.5rem, 12vw, 8rem) clamp(2.5rem, 7vw, 4.5rem);
+        position: relative;
+        display: grid;
+        min-height: 100vh;
+        min-height: 100svh;
+        place-items: center;
+        padding: clamp(2rem, 6vh, 4rem) 1rem 5rem;
         border-bottom: 2px solid #111111;
+        text-align: center;
+      }
+
+      .landing-hero-copy {
+        width: min(100%, 68rem);
       }
 
       .landing-title {
@@ -398,6 +414,26 @@
         margin-bottom: 0;
         color: #111111;
         font-size: clamp(1.2rem, 3vw, 1.65rem);
+      }
+
+      .scroll-cue {
+        position: absolute;
+        bottom: clamp(1rem, 3vh, 2rem);
+        left: 50%;
+        display: inline-flex;
+        min-height: 2.75rem;
+        align-items: center;
+        justify-content: center;
+        padding: 0.4rem 0.75rem;
+        transform: translateX(-50%);
+        border-radius: 0.2rem;
+        font-weight: 700;
+        text-decoration-thickness: 1px;
+        white-space: nowrap;
+      }
+
+      .scroll-cue:hover {
+        background: #F4EBCB;
       }
 
       .landing-main {
@@ -645,7 +681,7 @@
         overflow-x: auto;
         border: 1px solid var(--line);
         border-radius: 0.25rem;
-        background: #fff;
+        background: #fffdf5;
       }
 
       .market-chart {
@@ -758,12 +794,12 @@
         padding: 0.9rem;
         border: 2px solid var(--ink);
         border-radius: 0.35rem;
-        background: #fff;
-        transition: opacity 180ms ease, background-color 180ms ease;
+        background: #fffdf5;
+        transition: background-color 180ms ease;
       }
 
       .grocery-card.is-unaffordable {
-        opacity: 0.42;
+        border-style: dashed;
         background: var(--surface);
       }
 
@@ -802,6 +838,10 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
         .grocery-card {
           transition: none;
         }
