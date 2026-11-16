@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#FAF3DC">
+    <link rel="icon" type="image/jpeg" href="./logo.jpeg">
     <title>Chapter 2: Supply, Demand &amp; Market Equilibrium | Project Monochord</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,10 +15,42 @@
     <link rel="stylesheet" href="style.css">
   </head>
   <body class="chapter-page">
-    <a class="home-link" href="index.html">Back to Project Monochord Home</a>
     <a class="skip-link" href="#main-content">Skip to lesson</a>
 
+    <nav id="site-navigation" class="site-nav" aria-label="Main navigation">
+      <ul class="site-nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li>
+          <details>
+            <summary>Chapters ▾</summary>
+            <ul>
+              <li><a href="chapter1.html">Chapter 1: Inflation</a></li>
+              <li><a href="chapter2.html" aria-current="page">Chapter 2: Supply &amp; Demand</a></li>
+              <li><a href="chapter3.html">Chapter 3: Currency</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="studio.html">Custom Graph</a></li>
+        <li><a href="extension.html">Extension</a></li>
+      </ul>
+      <div class="site-nav-switch">
+        <button
+          id="audio-mode-toggle"
+          class="audio-mode-toggle"
+          type="button"
+          role="switch"
+          aria-checked="false"
+          aria-label="Audio-Only / Blind Mode"
+        >
+          <span>Audio-Only / Blind Mode</span>
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        </button>
+        <p id="audio-mode-status" class="audio-mode-status" role="status" aria-live="polite"></p>
+      </div>
+    </nav>
+
     <header class="site-header">
+      <img class="header-logo" src="./logo.jpeg" alt="" width="28" height="28">
       <p class="wordmark">PROJECT MONOCHORD · CHAPTER 2</p>
     </header>
 
@@ -134,7 +167,6 @@
       <a class="navigation-button" href="chapter3.html">Next: Chapter 3 — Currency Appreciation &amp; Depreciation →</a>
     </nav>
 
-    <script src="audio-challenge.js"></script>
     <script>
       (() => {
         "use strict";
@@ -374,6 +406,41 @@
           toggleButton.textContent = "Play Market Chord";
         }
 
+        async function playMarketReadoutChord() {
+          try {
+            if (!window.AudioContext) {
+              status.textContent = "Audio is not supported in this browser.";
+              return;
+            }
+            audioContext ??= new AudioContext();
+            await audioContext.resume();
+            const data = market();
+            const root = 130.81 * Math.pow(2, (data.equilibriumPrice - BASE_PRICE) / 60);
+            const start = audioContext.currentTime + 0.02;
+            const duration = 1.25;
+            RESOLVED_INTERVALS.forEach((_, index) => {
+              const frequency = root * Math.pow(2, intervalForVoice(index, data.intensity) / 12);
+              for (const [waveform, volume] of [["sine", 0.012], ["triangle", 0.009]]) {
+                const oscillator = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                oscillator.type = waveform;
+                oscillator.frequency.setValueAtTime(frequency, start);
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(volume, start + 0.12);
+                gain.gain.setValueAtTime(volume, start + duration - 0.16);
+                gain.gain.linearRampToValueAtTime(0.0001, start + duration);
+                oscillator.connect(gain);
+                gain.connect(audioContext.destination);
+                oscillator.start(start);
+                oscillator.stop(start + duration + 0.02);
+              }
+            });
+          } catch (error) {
+            status.textContent = "The market chord could not be played. Check browser audio settings and try again.";
+            console.error("Could not play the spoken market readout chord.", error);
+          }
+        }
+
         function setShift(numberInput, rangeInput, rawValue) {
           if (rawValue === "") return;
           const value = Number(rawValue);
@@ -402,6 +469,20 @@
         });
 
         window.addEventListener("monochord:stop-audio", () => holdTone());
+        window.addEventListener("monochord:audio-readout-start", () => {
+          holdTone();
+          try {
+            if (!window.AudioContext) return;
+            audioContext ??= new AudioContext();
+            void audioContext.resume();
+          } catch (error) {
+            status.textContent = "Audio could not be prepared for the spoken market readout.";
+            console.error("Could not prepare market audio for speech.", error);
+          }
+        });
+        window.addEventListener("monochord:audio-readout-complete", () => {
+          void playMarketReadoutChord();
+        });
         toggleButton.addEventListener("click", () => {
           if (isPlaying) holdTone();
           else void startTone();
@@ -428,5 +509,7 @@
         refresh();
       })();
     </script>
+    <script src="audio-challenge.js"></script>
+    <script src="audio-navigation.js"></script>
   </body>
 </html>

@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#FAF3DC">
+    <link rel="icon" type="image/jpeg" href="./logo.jpeg">
     <title>Chapter 3 | Currency Appreciation &amp; Depreciation</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,10 +15,42 @@
     <link rel="stylesheet" href="style.css">
   </head>
   <body class="chapter-page">
-    <a class="home-link" href="index.html">Back to Project Monochord Home</a>
     <a class="skip-link" href="#main-content">Skip to the tool</a>
 
+    <nav id="site-navigation" class="site-nav" aria-label="Main navigation">
+      <ul class="site-nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li>
+          <details>
+            <summary>Chapters ▾</summary>
+            <ul>
+              <li><a href="chapter1.html">Chapter 1: Inflation</a></li>
+              <li><a href="chapter2.html">Chapter 2: Supply &amp; Demand</a></li>
+              <li><a href="chapter3.html" aria-current="page">Chapter 3: Currency</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="studio.html">Custom Graph</a></li>
+        <li><a href="extension.html">Extension</a></li>
+      </ul>
+      <div class="site-nav-switch">
+        <button
+          id="audio-mode-toggle"
+          class="audio-mode-toggle"
+          type="button"
+          role="switch"
+          aria-checked="false"
+          aria-label="Audio-Only / Blind Mode"
+        >
+          <span>Audio-Only / Blind Mode</span>
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        </button>
+        <p id="audio-mode-status" class="audio-mode-status" role="status" aria-live="polite"></p>
+      </div>
+    </nav>
+
     <header class="site-header">
+      <img class="header-logo" src="./logo.jpeg" alt="" width="28" height="28">
       <p class="wordmark">PROJECT MONOCHORD · CHAPTER 3</p>
     </header>
 
@@ -149,7 +182,6 @@
       <a class="navigation-button" href="index.html">Back to Project Monochord Home</a>
     </nav>
 
-    <script src="audio-challenge.js"></script>
     <script>
       (() => {
         "use strict";
@@ -501,6 +533,26 @@
           selectMonth(selectedMonth + delta);
         });
 
+        window.addEventListener("monochord:audio-readout-start", () => {
+          stopTrend("");
+          try {
+            audioContext ??= new AudioContext();
+            void audioContext.resume();
+          } catch (error) {
+            status.textContent = "Audio could not be prepared for the spoken exchange rate.";
+            console.error("Could not prepare exchange-rate audio for speech.", error);
+          }
+        });
+        window.addEventListener("monochord:audio-readout-complete", (event) => {
+          const match = event.detail.inputId.match(/^month-(\d+)-range$/);
+          if (!match) return;
+          selectedMonth = Number(match[1]);
+          updateChart();
+          updateTable();
+          announceMonth(selectedMonth);
+          void playChord(selectedMonth);
+        });
+
         playButton.addEventListener("click", () => {
           void playTrend();
         });
@@ -521,5 +573,7 @@
         refresh();
       })();
     </script>
+    <script src="audio-challenge.js"></script>
+    <script src="audio-navigation.js"></script>
   </body>
 </html>

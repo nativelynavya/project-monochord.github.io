@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#FAF3DC">
+    <link rel="icon" type="image/jpeg" href="./logo.jpeg">
+    <title>Educator Browser Extension | Project Monochord</title>
+    <meta
+      name="description"
+      content="Install the Project Monochord educator extension to turn graph data into downloadable WAV sonifications."
+    >
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body class="chapter-page">
+    <a class="skip-link" href="#main-content">Skip to extension instructions</a>
+
+    <nav id="site-navigation" class="site-nav" aria-label="Main navigation">
+      <ul class="site-nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li>
+          <details>
+            <summary>Chapters ▾</summary>
+            <ul>
+              <li><a href="chapter1.html">Chapter 1: Inflation</a></li>
+              <li><a href="chapter2.html">Chapter 2: Supply &amp; Demand</a></li>
+              <li><a href="chapter3.html">Chapter 3: Currency</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="studio.html">Custom Graph</a></li>
+        <li><a href="extension.html" aria-current="page">Extension</a></li>
+      </ul>
+      <div class="site-nav-switch">
+        <button
+          id="audio-mode-toggle"
+          class="audio-mode-toggle"
+          type="button"
+          role="switch"
+          aria-checked="false"
+          aria-label="Audio-Only / Blind Mode"
+        >
+          <span>Audio-Only / Blind Mode</span>
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        </button>
+        <p id="audio-mode-status" class="audio-mode-status" role="status" aria-live="polite"></p>
+      </div>
+    </nav>
+
+    <header class="site-header">
+      <img class="header-logo" src="./logo.jpeg" alt="" width="28" height="28">
+      <p class="wordmark">PROJECT MONOCHORD · EDUCATOR EXTENSION</p>
+    </header>
+
+    <main id="main-content" tabindex="-1">
+      <section aria-labelledby="page-title">
+        <h1 id="page-title">Get the Educator Browser Extension</h1>
+        <p class="intro">
+          Create a custom chord sonification and export a WAV audio file
+          directly from your Chrome or Edge toolbar.
+        </p>
+        <p>
+          <a class="navigation-button" href="monochord-extension/monochord-extension.zip" download>
+            Download the Project Monochord Extension
+          </a>
+        </p>
+      </section>
+
+      <section class="panel" aria-labelledby="install-title">
+        <h2 id="install-title">Install in Chrome or Edge</h2>
+        <ol>
+          <li>Download and extract the ZIP file.</li>
+          <li>
+            Open <code>chrome://extensions</code> in Chrome or
+            <code>edge://extensions</code> in Edge.
+          </li>
+          <li>Turn on <strong>Developer mode</strong>.</li>
+          <li>Choose <strong>Load unpacked</strong> and select the extracted <code>monochord-extension</code> folder.</li>
+          <li>Pin Project Monochord to the toolbar, then open it to create and export a graph sonification.</li>
+        </ol>
+        <p>
+          The extension requests no browser permissions. Its source files are
+          available in the
+          <a href="https://github.com/nativelynavya/project-monochord.github.io/tree/main/monochord-extension">Project Monochord GitHub repository</a>.
+        </p>
+      </section>
+    </main>
+
+    <script src="audio-navigation.js"></script>
+  </body>
+</html>

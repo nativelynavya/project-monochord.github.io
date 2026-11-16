@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Project Monochord",
+  "version": "1.0.0",
+  "description": "Turn graph data into chord progressions and downloadable WAV sonifications.",
+  "action": {
+    "default_title": "Project Monochord",
+    "default_popup": "popup.html"
+  }
+}

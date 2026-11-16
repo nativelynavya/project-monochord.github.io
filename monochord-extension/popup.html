@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Project Monochord</title>
+    <link rel="icon" type="image/jpeg" href="./logo.jpeg">
+    <link rel="stylesheet" href="popup.css">
+    <script src="popup.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header class="popup-header">
+        <img class="popup-logo" src="./logo.jpeg" alt="" width="28" height="28">
+        <p class="eyebrow">PROJECT MONOCHORD</p>
+        <h1>Data, in harmony.</h1>
+        <p>Turn graph values into an audio file for your next lesson.</p>
+      </header>
+
+      <form id="sonification-form">
+        <section class="step" aria-labelledby="data-heading">
+          <h2 id="data-heading"><span class="step-number">1</span> Enter your graph data</h2>
+          <label for="graph-title">Graph title</label>
+          <input id="graph-title" name="graphTitle" type="text" maxlength="80" value="My Graph" required>
+
+          <label for="data-values">Numbers, separated by commas</label>
+          <textarea
+            id="data-values"
+            name="dataValues"
+            rows="3"
+            spellcheck="false"
+            aria-describedby="data-help"
+            required
+          >4, 7, 5, 9, 12, 10</textarea>
+          <p id="data-help" class="help-text">Enter 1–64 finite numbers. Their relative values set the chord roots.</p>
+
+          <div class="preset-list" aria-label="Example graph presets">
+            <button type="button" class="preset-button" data-title="Production Possibility Frontier" data-values="0, 4, 7, 9, 10, 10, 9, 7, 4, 0">Production Possibility Frontier</button>
+            <button type="button" class="preset-button" data-title="Inflation Curve" data-values="2, 2.5, 3, 4, 6, 8, 11, 12">Inflation Curve</button>
+            <button type="button" class="preset-button" data-title="Supply &amp; Demand Shock" data-values="9, 8, 7, 5, 3, 4, 6, 8">Supply &amp; Demand Shock</button>
+          </div>
+        </section>
+
+        <section class="step" aria-labelledby="chords-heading">
+          <h2 id="chords-heading"><span class="step-number">2</span> Choose a chord progression</h2>
+          <label for="chord-mode">Chord mode</label>
+          <select id="chord-mode" name="chordMode">
+            <option value="major">Major — bright and resolved</option>
+            <option value="minor">Minor — warm and reflective</option>
+            <option value="suspended">Suspended — open and curious</option>
+            <option value="seventh">Seventh — rich and layered</option>
+          </select>
+          <button id="preview-button" class="primary-button" type="button">Preview Chords</button>
+        </section>
+
+        <section class="step" aria-labelledby="export-heading">
+          <h2 id="export-heading"><span class="step-number">3</span> Take the audio with you</h2>
+          <p class="help-text">Export a stereo WAV file, ready to add to your slides.</p>
+          <button id="export-button" class="primary-button export-button" type="button">Export .WAV Audio File</button>
+        </section>
+      </form>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <p class="footer-note">Made for accessible, sound-first learning.</p>
+    </main>
+  </body>
+</html>

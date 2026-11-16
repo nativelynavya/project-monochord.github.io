@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#FAF3DC">
+    <link rel="icon" type="image/jpeg" href="./logo.jpeg">
     <title>Project Monochord</title>
     <meta
       name="description"
@@ -20,10 +21,53 @@
   <body class="landing-page">
     <a class="skip-link" href="#main-content">Skip to main content</a>
 
-    <header class="landing-hero">
+    <nav id="site-navigation" class="site-nav" aria-label="Main navigation">
+      <ul class="site-nav-links">
+        <li><a href="index.html" aria-current="page">Home</a></li>
+        <li>
+          <details>
+            <summary>Chapters ▾</summary>
+            <ul>
+              <li><a href="chapter1.html">Chapter 1: Inflation</a></li>
+              <li><a href="chapter2.html">Chapter 2: Supply &amp; Demand</a></li>
+              <li><a href="chapter3.html">Chapter 3: Currency</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="studio.html">Custom Graph</a></li>
+        <li><a href="extension.html">Extension</a></li>
+      </ul>
+    </nav>
+
+    <header class="site-header landing-site-header">
+      <a class="header-brand" href="index.html">
+        <img class="header-logo" src="./logo.jpeg" alt="" width="28" height="28">
+        <span>PROJECT MONOCHORD</span>
+      </a>
+    </header>
+
+    <header class="landing-hero hero">
       <div class="landing-hero-copy">
+        <img
+          class="hero-logo"
+          src="./logo.jpeg"
+          alt="Project Monochord logo: fusion of a balance scale triangle and piano keys"
+          width="92"
+        >
         <h1 class="landing-title">PROJECT MONOCHORD</h1>
         <p class="landing-byline">by Navya Bhardwaj</p>
+        <div class="blind-toggle-wrapper">
+          <span id="blind-mode-label">Audio-Only / Blind Mode</span>
+          <button
+            type="button"
+            id="blind-mode-switch"
+            role="switch"
+            aria-checked="false"
+            aria-labelledby="blind-mode-label"
+            class="pill-switch"
+          ><span class="pill-knob"></span></button>
+        </div>
+        <p id="audio-mode-status" class="audio-mode-status" role="status" aria-live="polite"></p>
       </div>
       <a class="scroll-cue" href="#main-content">Scroll down to explore ↓</a>
     </header>
@@ -53,39 +97,8 @@
         </p>
       </section>
 
-      <nav class="chapters-section" aria-labelledby="chapters-title">
-        <h2 id="chapters-title">Chapters</h2>
-        <ol class="chapter-cards">
-          <li>
-            <a class="chapter-card" href="chapter1.html">
-              <h3>Chapter 1: Purchasing Power vs. Inflation</h3>
-              <span>Open Chapter 1</span>
-            </a>
-          </li>
-          <li>
-            <a class="chapter-card" href="chapter2.html">
-              <h3>Chapter 2: Supply, Demand &amp; Equilibrium</h3>
-              <span>Open Chapter 2</span>
-            </a>
-          </li>
-          <li>
-            <a class="chapter-card" href="chapter3.html">
-              <h3>Chapter 3: Currency Appreciation &amp; Depreciation</h3>
-              <span>Open Chapter 3</span>
-            </a>
-          </li>
-        </ol>
-      </nav>
-
-      <section class="educator-section" aria-labelledby="educator-title">
-        <h2 id="educator-title">For Educators &amp; Custom Graphs</h2>
-        <p>Create, explore, sonify, and share a custom graph lesson.</p>
-        <a class="navigation-button" href="studio.html">For Educators &amp; Custom Graphs</a>
-      </section>
     </main>
 
-    <footer class="landing-footer">
-      <p>Project Monochord — learning data through sound.</p>
-    </footer>
+    <script src="audio-navigation.js"></script>
   </body>
 </html>
