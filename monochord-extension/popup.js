@@ -16,27 +16,101 @@ const exportButton = document.querySelector("#export-button");
 const status = document.querySelector("#status");
 let previewContext;
 let previewTimer;
+let sheetLoadTimer;
+let sheetRequestId = 0;
 
 function setStatus(message, isError = false) {
   status.textContent = message;
   status.dataset.error = String(isError);
 }
 
+function extractNumbers(text) {
+  const matches = text.matchAll(/(?:^|[^\w.])([+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)(?![\w.])/g);
+  return Array.from(matches, (match) => Number(match[1].replaceAll(",", "")))
+    .filter(Number.isFinite);
+}
+
+function getSheetCsvUrl(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.hostname !== "docs.google.com") {
+    return null;
+  }
+  const match = url.pathname.match(/^\/spreadsheets\/d\/(e\/)?([^/]+)(?:\/([^/]+))?/);
+  if (!match) {
+    throw new Error("Use a Google Sheets spreadsheet link.");
+  }
+  const [, publishedPrefix, id] = match;
+  const gid = url.searchParams.get("gid") || new URLSearchParams(url.hash.slice(1)).get("gid");
+  if (publishedPrefix) {
+    const csvUrl = new URL(`/spreadsheets/d/e/${id}/pub`, url.origin);
+    csvUrl.searchParams.set("output", "csv");
+    if (gid) {
+      csvUrl.searchParams.set("gid", gid);
+    }
+    return csvUrl.href;
+  }
+  const csvUrl = new URL(`/spreadsheets/d/${id}/export`, url.origin);
+  csvUrl.searchParams.set("format", "csv");
+  if (gid) {
+    csvUrl.searchParams.set("gid", gid);
+  }
+  return csvUrl.href;
+}
+
+async function loadGoogleSheet(value) {
+  let csvUrl;
+  try {
+    csvUrl = getSheetCsvUrl(value);
+  } catch (error) {
+    setStatus(error.message, true);
+    return;
+  }
+  if (!csvUrl) {
+    return;
+  }
+
+  const requestId = ++sheetRequestId;
+  setStatus("Loading the public Google Sheet…");
+  try {
+    const response = await fetch(csvUrl);
+    if (!response.ok) {
+      throw new Error(`Google Sheets returned ${response.status}. Check that the sheet is public.`);
+    }
+    const csv = await response.text();
+    if (/^\s*<(?:!doctype|html)\b/i.test(csv)) {
+      throw new Error("Google Sheets did not return CSV. Check that the sheet is public.");
+    }
+    if (requestId !== sheetRequestId) {
+      return;
+    }
+    valuesInput.value = csv;
+    const count = extractNumbers(csv).length;
+    if (count === 0) {
+      throw new Error("The public sheet did not contain any valid numbers.");
+    }
+    setStatus(`Loaded ${count} numbers from the public Google Sheet.`);
+  } catch (error) {
+    if (requestId === sheetRequestId) {
+      setStatus(error.message || "Could not load the public Google Sheet.", true);
+    }
+  }
+}
+
 function getGraphData() {
   const title = titleInput.value.trim();
-  const rawValues = valuesInput.value.split(",").map((value) => value.trim());
   if (!title) {
     throw new Error("Enter a graph title.");
   }
-  if (rawValues.some((value) => value === "")) {
-    throw new Error("Check the data: separate each number with a comma.");
-  }
-  if (rawValues.length > 64) {
+  const values = extractNumbers(valuesInput.value);
+  if (values.length > 64) {
     throw new Error("Use 64 numbers or fewer for a quick browser export.");
   }
-
-  const values = rawValues.map(Number);
-  if (values.length === 0 || values.some((value) => !Number.isFinite(value))) {
+  if (values.length === 0) {
     throw new Error("Enter one or more valid finite numbers.");
   }
 
@@ -209,6 +283,30 @@ document.querySelectorAll(".preset-button").forEach((button) => {
     setStatus(`${button.dataset.title} preset loaded.`);
     valuesInput.focus();
   });
+});
+
+valuesInput.addEventListener("input", () => {
+  window.clearTimeout(sheetLoadTimer);
+  sheetRequestId += 1;
+  const value = valuesInput.value.trim();
+  if (!value) {
+    return;
+  }
+  try {
+    if (getSheetCsvUrl(value)) {
+      sheetLoadTimer = window.setTimeout(() => {
+        void loadGoogleSheet(value);
+      }, 400);
+      setStatus("Public Google Sheet link detected. Loading CSV…");
+      return;
+    }
+    const count = extractNumbers(value).length;
+    if (count > 0) {
+      setStatus(`Parsed ${count} numbers from the pasted data.`);
+    }
+  } catch (error) {
+    setStatus(error.message, true);
+  }
 });
 
 previewButton.addEventListener("click", previewChords);

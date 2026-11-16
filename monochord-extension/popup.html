@@ -23,16 +23,17 @@
           <label for="graph-title">Graph title</label>
           <input id="graph-title" name="graphTitle" type="text" maxlength="80" value="My Graph" required>
 
-          <label for="data-values">Numbers, separated by commas</label>
+          <label for="data-values">Paste Raw CSV, Table Row, or Public Google Sheet Link</label>
           <textarea
             id="data-values"
             name="dataValues"
-            rows="3"
+            rows="7"
             spellcheck="false"
             aria-describedby="data-help"
             required
+            placeholder="Paste a CSV row, spreadsheet cells, or a public Google Sheets link."
           >4, 7, 5, 9, 12, 10</textarea>
-          <p id="data-help" class="help-text">Enter 1–64 finite numbers. Their relative values set the chord roots.</p>
+          <p id="data-help" class="help-text">Paste comma- or tab-separated rows, or a public Google Sheets link. Enter 1–64 finite numbers; their relative values set the chord roots.</p>
 
           <div class="preset-list" aria-label="Example graph presets">
             <button type="button" class="preset-button" data-title="Production Possibility Frontier" data-values="0, 4, 7, 9, 10, 10, 9, 7, 4, 0">Production Possibility Frontier</button>
@@ -61,7 +62,7 @@
       </form>
 
       <p id="status" class="status" role="status" aria-live="polite"></p>
-      <p class="footer-note">Made for accessible, sound-first learning.</p>
+      <p class="footer-note">On webpages, select numbers and press Alt + M or right-click the selection. Made for accessible, sound-first learning.</p>
     </main>
   </body>
 </html>

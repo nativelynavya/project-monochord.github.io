@@ -1,10 +1,38 @@
 {
   "manifest_version": 3,
   "name": "Project Monochord",
-  "version": "1.0.0",
-  "description": "Turn graph data into chord progressions and downloadable WAV sonifications.",
+  "version": "1.1.0",
+  "description": "Sonify selected webpage data or create chord progressions and downloadable WAV files.",
   "action": {
     "default_title": "Project Monochord",
     "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://docs.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true
+    }
+  ],
+  "commands": {
+    "sonify-selection": {
+      "suggested_key": {
+        "default": "Alt+M"
+      },
+      "description": "Sonify selected numbers with Project Monochord"
+    }
   }
 }

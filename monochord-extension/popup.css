@@ -101,6 +101,7 @@ select {
 }
 
 textarea {
+  min-height: 132px;
   resize: vertical;
 }
 

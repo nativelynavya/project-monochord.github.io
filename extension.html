@@ -62,8 +62,8 @@
       <section aria-labelledby="page-title">
         <h1 id="page-title">Get the Educator Browser Extension</h1>
         <p class="intro">
-          Create a custom chord sonification and export a WAV audio file
-          directly from your Chrome or Edge toolbar.
+          Sonify selected numbers on webpages, or create a custom chord
+          progression and export a WAV audio file from the toolbar.
         </p>
         <p>
           <a class="navigation-button" href="monochord-extension/monochord-extension.zip" download>
@@ -82,10 +82,13 @@
           </li>
           <li>Turn on <strong>Developer mode</strong>.</li>
           <li>Choose <strong>Load unpacked</strong> and select the extracted <code>monochord-extension</code> folder.</li>
-          <li>Pin Project Monochord to the toolbar, then open it to create and export a graph sonification.</li>
+          <li>Pin Project Monochord to the toolbar and open it to paste table data or a public Google Sheets link, preview its chords, and export a WAV file.</li>
+          <li>On a webpage, select numbers and press <strong>Alt + M</strong>, or right-click and choose <strong>Sonify Selected Numbers with Project Monochord</strong>.</li>
         </ol>
         <p>
-          The extension requests no browser permissions. Its source files are
+          The extension uses an all-webpage content script for selection sonification,
+          the context-menu permission for its right-click action, and Google Sheets
+          access only to fetch a pasted public sheet link. Its source files are
           available in the
           <a href="https://github.com/nativelynavya/project-monochord.github.io/tree/main/monochord-extension">Project Monochord GitHub repository</a>.
         </p>
